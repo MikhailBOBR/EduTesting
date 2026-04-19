@@ -12,11 +12,7 @@
         <header class="topbar">
             <div class="topbar__inner">
                 <a class="brand" href="{% url 'testing:home' %}">
-                    <span class="brand__mark">ET</span>
-                    <span class="brand__text">
-                        <strong>EduTesting</strong>
-                        <small>Сервис онлайн-тестирования студентов</small>
-                    </span>
+                    <strong>EduTesting</strong>
                 </a>
 
                 <nav class="topnav">
@@ -60,13 +56,6 @@
 
             {% block content %}{% endblock %}
         </main>
-
-        <footer class="footer">
-            <div class="footer__inner">
-                <p>Учебный веб-сервис для курсов, тестов, попыток и результатов.</p>
-                <p>Стек проекта: Python, Django, Django Templates, SQLite3, MVT.</p>
-            </div>
-        </footer>
     </div>
 </body>
 </html>
