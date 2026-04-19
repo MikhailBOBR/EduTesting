@@ -7,6 +7,7 @@ from accounts.models import User, UserRole
 from testing.models import (
     Announcement,
     Attempt,
+    AttemptReview,
     AttemptStatus,
     Choice,
     Course,
@@ -287,6 +288,7 @@ class Command(BaseCommand):
             courses[spec['title']] = course
 
         self._seed_attempts(course_specs, courses, students, now)
+        self._seed_reviews(courses, now)
         self._seed_in_progress(course_specs, courses, students, now)
 
         self.stdout.write(
@@ -417,6 +419,41 @@ class Command(BaseCommand):
                     continue
                 attempt, _ = Attempt.objects.get_or_create(quiz=quiz, student=student, status=AttemptStatus.IN_PROGRESS)
                 Attempt.objects.filter(pk=attempt.pk).update(started_at=now - timedelta(minutes=min(12, quiz.time_limit_minutes - 1)))
+
+    def _seed_reviews(self, courses, now):
+        feedback_map = {
+            'excellent': 'Результат уверенный. Можно переходить к следующему разделу курса.',
+            'good': 'Хорошая работа. Стоит дополнительно повторить 1-2 темы с ошибками.',
+            'average': 'Есть рабочая база, но по нескольким вопросам нужен повтор теории.',
+            'weak': 'Нужно еще раз разобрать материал и вернуться к тесту после повторения.',
+        }
+        reviewed_attempts = (
+            Attempt.objects.filter(
+                quiz__course__in=courses.values(),
+                status=AttemptStatus.SUBMITTED,
+            )
+            .select_related('quiz__course__owner')
+            .order_by('quiz__course_id', '-score_percent', 'submitted_at')[:18]
+        )
+
+        for attempt in reviewed_attempts:
+            if attempt.score_percent >= 85:
+                profile = 'excellent'
+            elif attempt.score_percent >= 65:
+                profile = 'good'
+            elif attempt.score_percent >= 45:
+                profile = 'average'
+            else:
+                profile = 'weak'
+
+            AttemptReview.objects.update_or_create(
+                attempt=attempt,
+                defaults={
+                    'teacher': attempt.quiz.course.owner,
+                    'feedback': feedback_map[profile],
+                    'reviewed_at': (attempt.submitted_at or now) + timedelta(hours=6),
+                },
+            )
 
     def _create_submitted_attempt(self, quiz, student, profile, submitted_at, duration_minutes):
         attempt = Attempt.objects.create(quiz=quiz, student=student)

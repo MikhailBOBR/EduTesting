@@ -7,7 +7,7 @@
     <div>
         <div class="section-kicker">Аналитика преподавателя</div>
         <h1>Попытки по тесту "{{ quiz.title }}"</h1>
-        <p class="muted">{{ quiz.course.title }} • Сводная статистика по результатам студентов.</p>
+        <p class="muted">{{ quiz.course.title }} • Сводная статистика и ручные комментарии преподавателя.</p>
     </div>
     <div class="button-row">
         <a class="button button-secondary" href="{% url 'testing:quiz_detail' quiz.pk %}">Назад к тесту</a>
@@ -28,12 +28,12 @@
         <span class="metric__label">Проходимость</span>
     </article>
     <article class="metric">
-        <span class="metric__value">{{ quiz.total_points }}</span>
-        <span class="metric__label">Максимум баллов</span>
+        <span class="metric__value">{{ analytics.reviewed_attempts }}</span>
+        <span class="metric__label">Есть комментарии</span>
     </article>
     <article class="metric">
         <span class="metric__value">{{ quiz.question_count }}</span>
-        <span class="metric__label">Вопросов в тесте</span>
+        <span class="metric__label">Вопросов</span>
     </article>
 </section>
 
@@ -48,6 +48,7 @@
                     <th>Длительность</th>
                     <th>Баллы</th>
                     <th>Результат</th>
+                    <th>Комментарий</th>
                     <th></th>
                 </tr>
             </thead>
@@ -60,11 +61,21 @@
                         <td>{{ attempt.duration_minutes }} мин.</td>
                         <td>{{ attempt.score_points }}/{{ attempt.total_points }}</td>
                         <td>{{ attempt.score_percent }}%</td>
-                        <td><a href="{% url 'testing:attempt_result' attempt.pk %}">Подробно</a></td>
+                        <td>
+                            {% if attempt.review %}
+                                <span class="badge badge-success">Есть</span>
+                            {% else %}
+                                <span class="badge badge-warning">Нет</span>
+                            {% endif %}
+                        </td>
+                        <td class="data-table__actions">
+                            <a href="{% url 'testing:attempt_result' attempt.pk %}">Отчет</a>
+                            <a href="{% url 'testing:attempt_review' attempt.pk %}">Комментарий</a>
+                        </td>
                     </tr>
                 {% empty %}
                     <tr>
-                        <td colspan="7">По этому тесту пока нет завершенных попыток.</td>
+                        <td colspan="8">По этому тесту пока нет завершенных попыток.</td>
                     </tr>
                 {% endfor %}
             </tbody>

@@ -4,11 +4,13 @@ from .views import (
     AnnouncementCreateView,
     AnnouncementUpdateView,
     AttemptDetailView,
+    AttemptReviewView,
     AttemptResultView,
     ChoiceCreateView,
     ChoiceUpdateView,
     CourseCreateView,
     CourseDetailView,
+    CourseResultsExportView,
     CourseInsightsView,
     CourseListView,
     CourseUpdateView,
@@ -35,6 +37,7 @@ urlpatterns = [
     path('courses/join/', JoinCourseByCodeView.as_view(), name='course_join_by_code'),
     path('courses/<int:pk>/', CourseDetailView.as_view(), name='course_detail'),
     path('courses/<int:pk>/insights/', CourseInsightsView.as_view(), name='course_insights'),
+    path('courses/<int:pk>/export/csv/', CourseResultsExportView.as_view(), name='course_export_csv'),
     path('courses/<int:pk>/edit/', CourseUpdateView.as_view(), name='course_edit'),
     path('courses/<int:pk>/enroll/', EnrollInCourseView.as_view(), name='course_enroll'),
     path(
@@ -58,4 +61,5 @@ urlpatterns = [
     path('quizzes/<int:pk>/attempts/', QuizAttemptsView.as_view(), name='quiz_attempts'),
     path('attempts/<int:pk>/', AttemptDetailView.as_view(), name='attempt_detail'),
     path('attempts/<int:pk>/result/', AttemptResultView.as_view(), name='attempt_result'),
+    path('attempts/<int:pk>/review/', AttemptReviewView.as_view(), name='attempt_review'),
 ]

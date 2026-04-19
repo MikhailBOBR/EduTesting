@@ -10,6 +10,11 @@
         <p class="muted">{{ attempt.quiz.course.title }} • Попытка от {{ attempt.submitted_at|date:"d.m.Y H:i" }}</p>
         <div class="button-row">
             <a class="button button-secondary" href="{% url 'testing:quiz_detail' attempt.quiz.pk %}">Назад к тесту</a>
+            {% if can_review %}
+                <a class="button button-secondary" href="{% url 'testing:attempt_review' attempt.pk %}">
+                    {% if attempt_review %}Изменить комментарий{% else %}Комментарий преподавателя{% endif %}
+                </a>
+            {% endif %}
         </div>
     </div>
     <div class="card-list">
@@ -49,6 +54,20 @@
         <span class="metric__label">Порог прохождения</span>
     </article>
 </section>
+
+{% if attempt_review %}
+    <section class="panel">
+        <div class="panel__header">
+            <div class="section-kicker">Комментарий преподавателя</div>
+            <h2>Результат ручной проверки</h2>
+        </div>
+        <p>{{ attempt_review.feedback|linebreaksbr }}</p>
+        <p class="muted">
+            Проверил: {{ attempt_review.teacher.get_full_name|default:attempt_review.teacher.username }} •
+            {{ attempt_review.reviewed_at|date:"d.m.Y H:i" }}
+        </p>
+    </section>
+{% endif %}
 
 {% if topic_insights.topic_rows %}
     <section class="grid-2">
@@ -119,7 +138,7 @@
 
 {% if not show_answer_key %}
     <section class="info-banner">
-        Преподаватель отключил показ правильных ответов для студентов. Отчет содержит только выбранные вами варианты и итоговую оценку.
+        Преподаватель отключил показ правильных ответов для студентов. В отчете отображаются только выбранные варианты и итоговый результат.
     </section>
 {% endif %}
 

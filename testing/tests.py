@@ -10,6 +10,7 @@ from accounts.models import User, UserRole
 from .analytics import (
     build_attempt_topic_insights,
     build_course_attention_students,
+    build_course_leaderboard,
     build_course_topic_diagnostics,
     build_student_topic_diagnostics,
 )
@@ -17,6 +18,7 @@ from .forms import AttemptForm, JoinCourseForm, QuizForm
 from .models import (
     Announcement,
     Attempt,
+    AttemptReview,
     AttemptStatus,
     Choice,
     Course,
@@ -431,6 +433,17 @@ class AnalyticsTests(TestingBaseMixin, TestCase):
         self.assertEqual(insights['strongest_topic']['topic'], 'Architecture')
         self.assertTrue(insights['recommendations'])
 
+    def test_build_course_leaderboard_sorts_students_by_average_score(self):
+        Enrollment.objects.create(course=self.course, student=self.other_student)
+        self.create_submitted_attempt(student=self.student, answers_mapping=self.correct_answers())
+        self.create_submitted_attempt(student=self.other_student, answers_mapping=self.partial_answers())
+
+        leaderboard = build_course_leaderboard(self.course)
+
+        self.assertEqual(leaderboard[0]['student'], self.student)
+        self.assertEqual(leaderboard[0]['rank'], 1)
+        self.assertGreater(leaderboard[0]['average_score'], leaderboard[1]['average_score'])
+
 
 class CourseAndDashboardViewTests(TestingBaseMixin, TestCase):
     def test_course_list_hides_unpublished_course_for_guest(self):
@@ -499,7 +512,9 @@ class CourseAndDashboardViewTests(TestingBaseMixin, TestCase):
         self.assertEqual(response.context['topic_diagnostics']['topic_rows'][0]['topic'], 'ORM')
 
     def test_teacher_can_open_course_insights_page(self):
-        self.create_submitted_attempt(student=self.student, answers_mapping=self.partial_answers())
+        Enrollment.objects.create(course=self.course, student=self.other_student)
+        self.create_submitted_attempt(student=self.student)
+        self.create_submitted_attempt(student=self.other_student, answers_mapping=self.partial_answers())
         self.client.force_login(self.teacher)
 
         response = self.client.get(reverse('testing:course_insights', args=[self.course.pk]))
@@ -507,6 +522,7 @@ class CourseAndDashboardViewTests(TestingBaseMixin, TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.context['can_manage'])
         self.assertTrue(response.context['attention_students'])
+        self.assertEqual(response.context['leaderboard'][0]['student'], self.student)
 
     def test_unenrolled_student_cannot_open_course_insights_page(self):
         self.client.force_login(self.other_student)
@@ -723,6 +739,20 @@ class StudentFlowTests(TestingBaseMixin, TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.context['show_answer_key'])
 
+    def test_student_sees_teacher_feedback_on_attempt_result(self):
+        attempt = self.create_submitted_attempt(student=self.student)
+        AttemptReview.objects.create(
+            attempt=attempt,
+            teacher=self.teacher,
+            feedback='Нужно повторить тему ORM и еще раз пройти практику.',
+        )
+        self.client.force_login(self.student)
+
+        response = self.client.get(reverse('testing:attempt_result', args=[attempt.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Нужно повторить тему ORM')
+
 
 class TeacherManagementTests(TestingBaseMixin, TestCase):
     def test_teacher_can_create_course(self):
@@ -805,9 +835,42 @@ class TeacherManagementTests(TestingBaseMixin, TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context['attempt'].pk, attempt.pk)
 
+    def test_teacher_can_add_feedback_to_attempt(self):
+        attempt = self.create_submitted_attempt(student=self.student)
+        self.client.force_login(self.teacher)
+
+        response = self.client.post(
+            reverse('testing:attempt_review', args=[attempt.pk]),
+            {'feedback': 'Хорошая работа, но нужно закрепить тему ORM.'},
+        )
+
+        self.assertRedirects(response, reverse('testing:attempt_result', args=[attempt.pk]))
+        review = AttemptReview.objects.get(attempt=attempt)
+        self.assertEqual(review.teacher, self.teacher)
+        self.assertIn('ORM', review.feedback)
+
+    def test_teacher_can_export_course_results_csv(self):
+        Enrollment.objects.create(course=self.course, student=self.other_student)
+        self.create_submitted_attempt(student=self.student)
+        self.create_submitted_attempt(student=self.other_student, answers_mapping=self.partial_answers())
+        self.client.force_login(self.teacher)
+
+        response = self.client.get(reverse('testing:course_export_csv', args=[self.course.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'text/csv; charset=utf-8')
+        content = response.content.decode('utf-8-sig')
+        self.assertIn(self.quiz.title, content)
+        self.assertIn(self.student.username, content)
+
     def test_student_cannot_open_teacher_course_creation_page(self):
         self.client.force_login(self.student)
         response = self.client.get(reverse('testing:course_create'))
+        self.assertEqual(response.status_code, 403)
+
+    def test_student_cannot_export_course_results_csv(self):
+        self.client.force_login(self.student)
+        response = self.client.get(reverse('testing:course_export_csv', args=[self.course.pk]))
         self.assertEqual(response.status_code, 403)
 
     def test_student_cannot_open_quiz_attempts_page(self):
@@ -827,6 +890,14 @@ class TeacherManagementTests(TestingBaseMixin, TestCase):
         response = self.client.get(reverse('testing:attempt_result', args=[attempt.pk]))
 
         self.assertEqual(response.status_code, 403)
+
+    def test_other_teacher_cannot_review_foreign_attempt(self):
+        attempt = self.create_submitted_attempt(student=self.student)
+        self.client.force_login(self.second_teacher)
+
+        response = self.client.get(reverse('testing:attempt_review', args=[attempt.pk]))
+
+        self.assertEqual(response.status_code, 404)
 
 
 class ApiTests(TestingBaseMixin, TestCase):

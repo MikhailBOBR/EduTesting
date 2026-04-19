@@ -1,9 +1,13 @@
+import csv
+
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
 from django.db.models import Avg, Q
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.views import View
 from django.views.generic import CreateView, DetailView, ListView, TemplateView, UpdateView
 
@@ -12,12 +16,15 @@ from accounts.mixins import StudentRequiredMixin, TeacherRequiredMixin
 from .analytics import (
     build_attempt_topic_insights,
     build_course_attention_students,
+    build_course_gradebook,
+    build_course_leaderboard,
     build_course_topic_diagnostics,
     build_student_topic_diagnostics,
 )
 from .forms import (
     AnnouncementForm,
     AttemptForm,
+    AttemptReviewForm,
     ChoiceForm,
     CourseFilterForm,
     CourseForm,
@@ -25,7 +32,7 @@ from .forms import (
     QuestionForm,
     QuizForm,
 )
-from .models import Announcement, Attempt, AttemptStatus, Choice, Course, Enrollment, Question, Quiz
+from .models import Announcement, Attempt, AttemptReview, AttemptStatus, Choice, Course, Enrollment, Question, Quiz
 from .services import submit_attempt
 
 
@@ -370,11 +377,63 @@ class CourseInsightsView(LoginRequiredMixin, DetailView):
         if can_manage:
             context['topic_diagnostics'] = build_course_topic_diagnostics(course)
             context['attention_students'] = build_course_attention_students(course)
+            context['leaderboard'] = build_course_leaderboard(course)
         else:
             context['student_progress'] = build_student_progress(course, user)
             context['topic_diagnostics'] = build_student_topic_diagnostics(course, user)
 
         return context
+
+
+class CourseResultsExportView(TeacherRequiredMixin, View):
+    def get(self, request, pk):
+        course = get_object_or_404(Course.objects.select_related('owner'), pk=pk, owner=request.user)
+        gradebook = build_course_gradebook(course)
+
+        response = HttpResponse(content_type='text/csv; charset=utf-8')
+        response['Content-Disposition'] = f'attachment; filename="course_{course.pk}_results.csv"'
+        response.write('\ufeff')
+        writer = csv.writer(response, delimiter=';')
+
+        header = [
+            'РЎС‚СѓРґРµРЅС‚',
+            'Р›РѕРіРёРЅ',
+            'Р“СЂСѓРїРїР°',
+            'РЎС‚Р°С‚СѓСЃ Р·Р°РїРёСЃРё',
+            'Р—Р°РІРµСЂС€РµРЅРѕ С‚РµСЃС‚РѕРІ',
+            'РћСЃС‚Р°Р»РѕСЃСЊ С‚РµСЃС‚РѕРІ',
+            'РЎСЂРµРґРЅРёР№ СЂРµР·СѓР»СЊС‚Р°С‚, %',
+            'Р›СѓС‡С€РёР№ СЂРµР·СѓР»СЊС‚Р°С‚, %',
+            'РџРѕСЃР»РµРґРЅСЏСЏ РїРѕРїС‹С‚РєР°',
+        ]
+        header.extend([f'{quiz.title} (%)' for quiz in gradebook['quizzes']])
+        writer.writerow(header)
+
+        for row in gradebook['rows']:
+            last_submitted_at = (
+                timezone.localtime(row['last_submitted_at']).strftime('%d.%m.%Y %H:%M')
+                if row['last_submitted_at']
+                else ''
+            )
+            writer.writerow(
+                [
+                    row['student'].get_full_name() or row['student'].username,
+                    row['student'].username,
+                    row['student'].academic_group or '',
+                    row['enrollment'].get_status_display(),
+                    row['completed_quizzes'],
+                    row['pending_quizzes'],
+                    row['average_score'],
+                    row['best_score'],
+                    last_submitted_at,
+                    *[
+                        row['quiz_scores'][quiz.id] if row['quiz_scores'][quiz.id] is not None else ''
+                        for quiz in gradebook['quizzes']
+                    ],
+                ]
+            )
+
+        return response
 
 
 class JoinCourseByCodeView(StudentRequiredMixin, View):
@@ -830,8 +889,50 @@ class AttemptResultView(LoginRequiredMixin, DetailView):
             .all()
         )
         context['show_answer_key'] = show_answer_key
+        context['can_review'] = self.request.user.is_teacher and self.object.quiz.course.owner_id == self.request.user.id
+        context['attempt_review'] = getattr(self.object, 'review', None)
         context['topic_insights'] = build_attempt_topic_insights(self.object)
         return context
+
+
+class AttemptReviewView(TeacherRequiredMixin, UpdateView):
+    form_class = AttemptReviewForm
+    model = AttemptReview
+    template_name = 'testing/attempt_review_form.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        self.attempt = get_object_or_404(
+            Attempt.objects.select_related('quiz', 'quiz__course', 'student'),
+            pk=kwargs['pk'],
+            quiz__course__owner=request.user,
+            status=AttemptStatus.SUBMITTED,
+        )
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_object(self, queryset=None):
+        return AttemptReview.objects.filter(attempt=self.attempt).first()
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        if kwargs.get('instance') is None:
+            kwargs['instance'] = AttemptReview(attempt=self.attempt, teacher=self.request.user)
+        return kwargs
+
+    def form_valid(self, form):
+        form.instance.attempt = self.attempt
+        form.instance.teacher = self.request.user
+        form.instance.reviewed_at = timezone.now()
+        messages.success(self.request, 'РљРѕРјРјРµРЅС‚Р°СЂРёР№ РїСЂРµРїРѕРґР°РІР°С‚РµР»СЏ СЃРѕС…СЂР°РЅРµРЅ.')
+        return super().form_valid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['attempt'] = self.attempt
+        context['page_title'] = 'РљРѕРјРјРµРЅС‚Р°СЂРёР№ Рє РїРѕРїС‹С‚РєРµ'
+        return context
+
+    def get_success_url(self):
+        return reverse('testing:attempt_result', kwargs={'pk': self.attempt.pk})
 
 
 class QuizAttemptsView(TeacherRequiredMixin, ListView):
@@ -849,7 +950,7 @@ class QuizAttemptsView(TeacherRequiredMixin, ListView):
     def get_queryset(self):
         return (
             Attempt.objects.filter(quiz=self.quiz, status=AttemptStatus.SUBMITTED)
-            .select_related('student')
+            .select_related('student', 'review')
             .order_by('-submitted_at')
         )
 
@@ -860,5 +961,6 @@ class QuizAttemptsView(TeacherRequiredMixin, ListView):
             'attempts': self.quiz.submitted_attempts_count,
             'average_score': self.quiz.average_score,
             'pass_rate': self.quiz.pass_rate,
+            'reviewed_attempts': AttemptReview.objects.filter(attempt__quiz=self.quiz).count(),
         }
         return context

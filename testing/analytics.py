@@ -216,3 +216,96 @@ def build_course_attention_students(course):
         )
 
     return sorted(rows, key=lambda row: (-row['risk_score'], row['student'].username))
+
+
+def build_course_gradebook(course):
+    quizzes = list(course.quizzes.filter(is_published=True).order_by('title'))
+    rows = []
+    enrollments = course.enrollments.select_related('student').order_by(
+        'student__last_name',
+        'student__first_name',
+        'student__username',
+    )
+
+    for enrollment in enrollments:
+        attempts = (
+            Attempt.objects.filter(
+                student=enrollment.student,
+                quiz__course=course,
+                status=AttemptStatus.SUBMITTED,
+            )
+            .select_related('quiz')
+            .order_by('quiz__title', '-score_percent', '-submitted_at')
+        )
+        best_scores_by_quiz = {}
+        attempt_counts_by_quiz = {}
+        last_submitted_at = None
+
+        for attempt in attempts:
+            attempt_counts_by_quiz[attempt.quiz_id] = attempt_counts_by_quiz.get(attempt.quiz_id, 0) + 1
+            if attempt.submitted_at and (last_submitted_at is None or attempt.submitted_at > last_submitted_at):
+                last_submitted_at = attempt.submitted_at
+
+            current_best = best_scores_by_quiz.get(attempt.quiz_id)
+            if current_best is None or attempt.score_percent > current_best:
+                best_scores_by_quiz[attempt.quiz_id] = attempt.score_percent
+
+        completed_quizzes = len(best_scores_by_quiz)
+        pending_quizzes = max(len(quizzes) - completed_quizzes, 0)
+        average_score = round(sum(best_scores_by_quiz.values()) / completed_quizzes) if completed_quizzes else 0
+        best_score = max(best_scores_by_quiz.values()) if best_scores_by_quiz else 0
+        progress_percent = round((completed_quizzes / len(quizzes)) * 100) if quizzes else 0
+
+        rows.append(
+            {
+                'student': enrollment.student,
+                'enrollment': enrollment,
+                'average_score': average_score,
+                'best_score': best_score,
+                'completed_quizzes': completed_quizzes,
+                'pending_quizzes': pending_quizzes,
+                'progress_percent': progress_percent,
+                'quiz_scores': {quiz.id: best_scores_by_quiz.get(quiz.id) for quiz in quizzes},
+                'quiz_attempt_counts': {quiz.id: attempt_counts_by_quiz.get(quiz.id, 0) for quiz in quizzes},
+                'last_submitted_at': last_submitted_at,
+            }
+        )
+
+    return {
+        'quizzes': quizzes,
+        'rows': rows,
+    }
+
+
+def build_course_leaderboard(course, limit=10):
+    gradebook = build_course_gradebook(course)
+    ranking = sorted(
+        gradebook['rows'],
+        key=lambda row: (-row['average_score'], -row['completed_quizzes'], row['pending_quizzes'], row['student'].username),
+    )
+    leaderboard = []
+
+    for index, row in enumerate(ranking[:limit], start=1):
+        if row['progress_percent'] == 100 and row['average_score'] >= 85:
+            status_code = 'leader'
+            status_label = 'Р›РёРґРµСЂ РєСѓСЂСЃР°'
+        elif row['average_score'] >= 70:
+            status_code = 'stable'
+            status_label = 'РЎС‚Р°Р±РёР»СЊРЅС‹Р№ С‚РµРјРї'
+        elif row['completed_quizzes'] == 0:
+            status_code = 'risk'
+            status_label = 'РќРµС‚ РїСЂРѕРіСЂРµСЃСЃР°'
+        else:
+            status_code = 'watch'
+            status_label = 'РќСѓР¶РЅРѕ СѓСЃРёР»РµРЅРёРµ'
+
+        leaderboard.append(
+            {
+                **row,
+                'rank': index,
+                'status_code': status_code,
+                'status_label': status_label,
+            }
+        )
+
+    return leaderboard

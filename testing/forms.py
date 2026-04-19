@@ -2,7 +2,7 @@ from django import forms
 
 from accounts.forms import style_form_fields
 
-from .models import Announcement, Choice, Course, Question, QuestionType, Quiz, SemesterChoices
+from .models import Announcement, AttemptReview, Choice, Course, Question, QuestionType, Quiz, SemesterChoices
 
 
 class CourseForm(forms.ModelForm):
@@ -146,6 +146,22 @@ class AnnouncementForm(forms.ModelForm):
         }
         widgets = {
             'body': forms.Textarea(attrs={'rows': 5}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        style_form_fields(self)
+
+
+class AttemptReviewForm(forms.ModelForm):
+    class Meta:
+        model = AttemptReview
+        fields = ('feedback',)
+        labels = {
+            'feedback': 'РљРѕРјРјРµРЅС‚Р°СЂРёР№ РїСЂРµРїРѕРґР°РІР°С‚РµР»СЏ',
+        }
+        widgets = {
+            'feedback': forms.Textarea(attrs={'rows': 6}),
         }
 
     def __init__(self, *args, **kwargs):

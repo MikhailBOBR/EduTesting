@@ -424,3 +424,28 @@ class Announcement(TimeStampedModel):
 
     def __str__(self):
         return f'{self.course.title}: {self.title}'
+
+
+class AttemptReview(TimeStampedModel):
+    attempt = models.OneToOneField(
+        Attempt,
+        on_delete=models.CASCADE,
+        related_name='review',
+        verbose_name='РџРѕРїС‹С‚РєР°',
+    )
+    teacher = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='attempt_reviews',
+        verbose_name='РџСЂРµРїРѕРґР°РІР°С‚РµР»СЊ',
+    )
+    feedback = models.TextField('РљРѕРјРјРµРЅС‚Р°СЂРёР№ РїСЂРµРїРѕРґР°РІР°С‚РµР»СЏ')
+    reviewed_at = models.DateTimeField('Р”Р°С‚Р° РїСЂРѕРІРµСЂРєРё', default=timezone.now)
+
+    class Meta:
+        ordering = ('-reviewed_at',)
+        verbose_name = 'РљРѕРјРјРµРЅС‚Р°СЂРёР№ РїРѕ РїРѕРїС‹С‚РєРµ'
+        verbose_name_plural = 'РљРѕРјРјРµРЅС‚Р°СЂРёРё РїРѕ РїРѕРїС‹С‚РєР°Рј'
+
+    def __str__(self):
+        return f'РџСЂРѕРІРµСЂРєР° РїРѕРїС‹С‚РєРё #{self.attempt_id}'
