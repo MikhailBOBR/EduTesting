@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+
+{% block title %}Вход | EduTesting{% endblock %}
+
+{% block content %}
+<section class="panel panel-form">
+    <div class="section-heading">
+        <span class="eyebrow">Авторизация</span>
+        <h1>Вход в систему</h1>
+        <p>Используйте учётную запись преподавателя или студента, чтобы попасть в рабочую панель сервиса.</p>
+    </div>
+
+    <form method="post" class="stacked-form">
+        {% csrf_token %}
+        {% for field in form %}
+            <div class="form-field">
+                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}
+                    <div class="form-error">{{ field.errors|striptags }}</div>
+                {% endif %}
+            </div>
+        {% endfor %}
+        <button type="submit" class="button button-primary">Войти</button>
+    </form>
+
+    <p class="subtle-note">
+        Нет аккаунта?
+        <a href="{% url 'accounts:signup' %}">Создать профиль</a>
+    </p>
+</section>
+{% endblock %}

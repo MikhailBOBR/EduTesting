@@ -1,0 +1,147 @@
+{% extends 'base.html' %}
+
+{% block title %}EduTesting{% endblock %}
+
+{% block content %}
+<section class="page-header">
+    <div class="section-kicker">Курсовой проект</div>
+    <h1>Веб-сервис онлайн-тестирования студентов</h1>
+    <p class="muted">
+        Система предназначена для публикации учебных курсов, проведения тестирования,
+        хранения попыток и просмотра результатов. Интерфейс сделан сдержанным, с упором
+        на серверную логику, структуру данных и навигацию между разделами.
+    </p>
+    <div class="page-header__meta">
+        <span>Python</span>
+        <span>Django</span>
+        <span>Django Templates</span>
+        <span>SQLite3</span>
+        <span>MVT</span>
+    </div>
+    <div class="button-row">
+        <a class="button button-primary" href="{% url 'testing:course_list' %}">Открыть каталог курсов</a>
+        {% if user.is_authenticated %}
+            <a class="button button-secondary" href="{% url 'testing:dashboard' %}">Перейти в рабочую панель</a>
+        {% else %}
+            <a class="button button-secondary" href="{% url 'accounts:signup' %}">Создать учетную запись</a>
+        {% endif %}
+    </div>
+</section>
+
+<section class="stats-strip">
+    <article class="metric">
+        <span class="metric__value">{{ stats.courses }}</span>
+        <span class="metric__label">Опубликованных курсов</span>
+    </article>
+    <article class="metric">
+        <span class="metric__value">{{ stats.quizzes }}</span>
+        <span class="metric__label">Активных тестов</span>
+    </article>
+    <article class="metric">
+        <span class="metric__value">{{ stats.students }}</span>
+        <span class="metric__label">Студентов в системе</span>
+    </article>
+    <article class="metric">
+        <span class="metric__value">{{ stats.attempts }}</span>
+        <span class="metric__label">Завершенных попыток</span>
+    </article>
+    <article class="metric">
+        <span class="metric__value">{{ stats.announcements }}</span>
+        <span class="metric__label">Объявлений по курсам</span>
+    </article>
+</section>
+
+<section class="grid-2">
+    <article class="panel">
+        <div class="panel__header">
+            <div class="section-kicker">Курсы</div>
+            <h2>Опубликованные дисциплины</h2>
+            <p>Каталог доступных курсов с преподавателем и базовой информацией.</p>
+        </div>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Дисциплина</th>
+                        <th>Код</th>
+                        <th>Семестр</th>
+                        <th>Преподаватель</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for course in featured_courses %}
+                        <tr>
+                            <td>
+                                <strong>{{ course.title }}</strong><br>
+                                <span class="muted">{{ course.summary }}</span>
+                            </td>
+                            <td>{{ course.subject_code|default:'—' }}</td>
+                            <td>{{ course.get_semester_display }}</td>
+                            <td>{{ course.owner.get_full_name|default:course.owner.username }}</td>
+                            <td><a href="{% url 'testing:course_detail' course.pk %}">Открыть</a></td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="5">Опубликованные курсы пока отсутствуют.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </article>
+
+    <article class="panel">
+        <div class="panel__header">
+            <div class="section-kicker">Тесты</div>
+            <h2>Ближайшие доступные тесты</h2>
+            <p>Список активных тестов, опубликованных по доступным курсам.</p>
+        </div>
+
+        <div class="card-list">
+            {% for quiz in upcoming_quizzes %}
+                <article class="card">
+                    <div class="tag-row">
+                        <span class="badge">Тест</span>
+                        {% if quiz.available_until %}
+                            <span class="meta-chip">До {{ quiz.available_until|date:"d.m.Y H:i" }}</span>
+                        {% endif %}
+                    </div>
+                    <h3>{{ quiz.title }}</h3>
+                    <p class="muted">{{ quiz.course.title }}</p>
+                    <p class="muted">{{ quiz.question_count }} вопросов • {{ quiz.total_points }} баллов</p>
+                </article>
+            {% empty %}
+                <div class="empty-state">Активных тестов сейчас нет.</div>
+            {% endfor %}
+        </div>
+    </article>
+</section>
+
+<section class="panel">
+    <div class="panel__header">
+        <div class="section-kicker">Объявления</div>
+        <h2>Последние сообщения преподавателей</h2>
+        <p>Краткая сводка по важным публикациям в учебных курсах.</p>
+    </div>
+
+    <div class="grid-2">
+        {% for announcement in recent_announcements %}
+            <article class="announcement">
+                <div class="tag-row">
+                    {% if announcement.is_important %}
+                        <span class="badge badge-warning">Важное</span>
+                    {% endif %}
+                    <span class="meta-chip">{{ announcement.course.title }}</span>
+                    <span class="meta-chip">{{ announcement.published_at|date:"d.m.Y H:i" }}</span>
+                </div>
+                <h3>{{ announcement.title }}</h3>
+                <p class="muted">{{ announcement.body }}</p>
+            </article>
+        {% empty %}
+            <div class="empty-state">Пока нет опубликованных объявлений.</div>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}

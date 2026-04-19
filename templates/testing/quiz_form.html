@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ page_title }} | EduTesting{% endblock %}
+
+{% block content %}
+<section class="panel panel-form">
+    <div class="section-heading">
+        <div class="section-kicker">Управление тестом</div>
+        <h1>{{ page_title }}</h1>
+        <p>Настройте сроки, попытки, критерии прохождения и правила показа правильных ответов.</p>
+    </div>
+
+    {% if course %}
+        <div class="info-banner">
+            Курс: <a href="{% url 'testing:course_detail' course.pk %}">{{ course.title }}</a>
+        </div>
+    {% endif %}
+
+    <form method="post" class="stacked-form">
+        {% csrf_token %}
+        <div class="form-grid form-grid--wide">
+            {% for field in form %}
+                <div class="form-field">
+                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.errors %}
+                        <div class="form-error">{{ field.errors|striptags }}</div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        </div>
+        <div class="button-row">
+            <button type="submit" class="button button-primary">Сохранить тест</button>
+            {% if course %}
+                <a class="button button-secondary" href="{% url 'testing:course_detail' course.pk %}">Назад к курсу</a>
+            {% endif %}
+        </div>
+    </form>
+</section>
+{% endblock %}

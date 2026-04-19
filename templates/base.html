@@ -1,0 +1,72 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}EduTesting{% endblock %}</title>
+    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+</head>
+<body>
+    <div class="app-shell">
+        <header class="topbar">
+            <div class="topbar__inner">
+                <a class="brand" href="{% url 'testing:home' %}">
+                    <span class="brand__mark">ET</span>
+                    <span class="brand__text">
+                        <strong>EduTesting</strong>
+                        <small>Сервис онлайн-тестирования студентов</small>
+                    </span>
+                </a>
+
+                <nav class="topnav">
+                    <a href="{% url 'testing:home' %}">Главная</a>
+                    <a href="{% url 'testing:course_list' %}">Курсы</a>
+                    {% if user.is_authenticated %}
+                        <a href="{% url 'testing:dashboard' %}">Панель</a>
+                        <a href="{% url 'accounts:profile' %}">Профиль</a>
+                    {% endif %}
+                    {% if user.is_authenticated and user.is_teacher %}
+                        <a href="{% url 'testing:course_create' %}">Создать курс</a>
+                    {% endif %}
+                </nav>
+
+                <div class="topbar__actions">
+                    {% if user.is_authenticated %}
+                        <div class="identity">
+                            <span class="identity__name">{{ user.get_full_name|default:user.username }}</span>
+                            <span class="identity__role">{{ user.get_role_display }}</span>
+                        </div>
+                        <form method="post" action="{% url 'accounts:logout' %}">
+                            {% csrf_token %}
+                            <button type="submit" class="button button-secondary">Выйти</button>
+                        </form>
+                    {% else %}
+                        <a class="button button-secondary" href="{% url 'accounts:login' %}">Войти</a>
+                        <a class="button button-primary" href="{% url 'accounts:signup' %}">Регистрация</a>
+                    {% endif %}
+                </div>
+            </div>
+        </header>
+
+        <main class="main-layout">
+            {% if messages %}
+                <section class="message-stack">
+                    {% for message in messages %}
+                        <div class="message message-{{ message.tags|default:'info' }}">{{ message }}</div>
+                    {% endfor %}
+                </section>
+            {% endif %}
+
+            {% block content %}{% endblock %}
+        </main>
+
+        <footer class="footer">
+            <div class="footer__inner">
+                <p>Учебный веб-сервис для курсов, тестов, попыток и результатов.</p>
+                <p>Стек проекта: Python, Django, Django Templates, SQLite3, MVT.</p>
+            </div>
+        </footer>
+    </div>
+</body>
+</html>

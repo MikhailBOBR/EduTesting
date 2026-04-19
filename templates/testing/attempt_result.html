@@ -1,0 +1,118 @@
+{% extends 'base.html' %}
+
+{% block title %}Результат теста | EduTesting{% endblock %}
+
+{% block content %}
+<section class="page-header page-header--split">
+    <div>
+        <div class="section-kicker">Отчет по попытке</div>
+        <h1>{{ attempt.quiz.title }}</h1>
+        <p class="muted">{{ attempt.quiz.course.title }} • Попытка от {{ attempt.submitted_at|date:"d.m.Y H:i" }}</p>
+        <div class="button-row">
+            <a class="button button-secondary" href="{% url 'testing:quiz_detail' attempt.quiz.pk %}">Назад к тесту</a>
+        </div>
+    </div>
+    <div class="card-list">
+        <article class="compact-card">
+            <div class="section-kicker">Статус</div>
+            <h3>
+                {% if attempt.is_passed %}
+                    Тест пройден
+                {% else %}
+                    Тест не пройден
+                {% endif %}
+            </h3>
+            <p class="muted">Длительность: {{ attempt.duration_minutes }} мин.</p>
+        </article>
+    </div>
+</section>
+
+<section class="stats-strip">
+    <article class="metric">
+        <span class="metric__value">{{ attempt.score_percent }}%</span>
+        <span class="metric__label">Итоговый результат</span>
+    </article>
+    <article class="metric">
+        <span class="metric__value">{{ attempt.score_points }}/{{ attempt.total_points }}</span>
+        <span class="metric__label">Баллы</span>
+    </article>
+    <article class="metric">
+        <span class="metric__value">{{ attempt.correct_answers_count }}/{{ attempt.total_questions }}</span>
+        <span class="metric__label">Верные ответы</span>
+    </article>
+    <article class="metric">
+        <span class="metric__value">{{ attempt.duration_minutes }}</span>
+        <span class="metric__label">Минут на выполнение</span>
+    </article>
+    <article class="metric">
+        <span class="metric__value">{{ attempt.quiz.passing_score }}%</span>
+        <span class="metric__label">Порог прохождения</span>
+    </article>
+</section>
+
+{% if not show_answer_key %}
+    <section class="info-banner">
+        Преподаватель отключил показ правильных ответов для студентов. Отчет содержит только выбранные вами варианты и итоговую оценку.
+    </section>
+{% endif %}
+
+<section class="panel">
+    <div class="panel__header">
+        <div class="section-kicker">Разбор</div>
+        <h2>Ответы по каждому вопросу</h2>
+    </div>
+
+    <div class="card-list">
+        {% for answer in answers %}
+            <article class="result-card">
+                <div class="tag-row">
+                    <span class="badge">Вопрос {{ forloop.counter }}</span>
+                    <span class="meta-chip">{{ answer.awarded_points }}/{{ answer.question.points }} балл(ов)</span>
+                    {% if answer.is_correct %}
+                        <span class="badge badge-success">Верно</span>
+                    {% else %}
+                        <span class="badge badge-danger">Неверно</span>
+                    {% endif %}
+                </div>
+                <h3>{{ answer.question.text }}</h3>
+                {% if answer.question.topic %}
+                    <p class="muted">Тема: {{ answer.question.topic }}</p>
+                {% endif %}
+
+                <div class="result-grid">
+                    <div class="compact-card">
+                        <h4>Выбранные варианты</h4>
+                        <ul class="choice-list">
+                            {% for choice in answer.selected_choices.all %}
+                                <li>{{ choice.text }}</li>
+                            {% empty %}
+                                <li>Ответ не выбран.</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    <div class="compact-card">
+                        <h4>Эталон ответа</h4>
+                        {% if show_answer_key %}
+                            <ul class="choice-list">
+                                {% for choice in answer.question.choices.all %}
+                                    {% if choice.is_correct %}
+                                        <li>{{ choice.text }}</li>
+                                    {% endif %}
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <p class="muted">Правильные ответы скрыты настройками теста.</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                {% if show_answer_key and answer.question.explanation %}
+                    <div class="info-banner">
+                        <strong>Пояснение:</strong> {{ answer.question.explanation }}
+                    </div>
+                {% endif %}
+            </article>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}

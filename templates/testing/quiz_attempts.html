@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+
+{% block title %}Попытки студентов | EduTesting{% endblock %}
+
+{% block content %}
+<section class="page-header page-header--split">
+    <div>
+        <div class="section-kicker">Аналитика преподавателя</div>
+        <h1>Попытки по тесту "{{ quiz.title }}"</h1>
+        <p class="muted">{{ quiz.course.title }} • Сводная статистика по результатам студентов.</p>
+    </div>
+    <div class="button-row">
+        <a class="button button-secondary" href="{% url 'testing:quiz_detail' quiz.pk %}">Назад к тесту</a>
+    </div>
+</section>
+
+<section class="stats-strip">
+    <article class="metric">
+        <span class="metric__value">{{ analytics.attempts }}</span>
+        <span class="metric__label">Завершенных попыток</span>
+    </article>
+    <article class="metric">
+        <span class="metric__value">{{ analytics.average_score }}%</span>
+        <span class="metric__label">Средний результат</span>
+    </article>
+    <article class="metric">
+        <span class="metric__value">{{ analytics.pass_rate }}%</span>
+        <span class="metric__label">Проходимость</span>
+    </article>
+    <article class="metric">
+        <span class="metric__value">{{ quiz.total_points }}</span>
+        <span class="metric__label">Максимум баллов</span>
+    </article>
+    <article class="metric">
+        <span class="metric__value">{{ quiz.question_count }}</span>
+        <span class="metric__label">Вопросов в тесте</span>
+    </article>
+</section>
+
+<section class="panel">
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Студент</th>
+                    <th>Группа</th>
+                    <th>Завершено</th>
+                    <th>Длительность</th>
+                    <th>Баллы</th>
+                    <th>Результат</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for attempt in attempts %}
+                    <tr>
+                        <td>{{ attempt.student.get_full_name|default:attempt.student.username }}</td>
+                        <td>{{ attempt.student.academic_group|default:'—' }}</td>
+                        <td>{{ attempt.submitted_at|date:"d.m.Y H:i" }}</td>
+                        <td>{{ attempt.duration_minutes }} мин.</td>
+                        <td>{{ attempt.score_points }}/{{ attempt.total_points }}</td>
+                        <td>{{ attempt.score_percent }}%</td>
+                        <td><a href="{% url 'testing:attempt_result' attempt.pk %}">Подробно</a></td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="7">По этому тесту пока нет завершенных попыток.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

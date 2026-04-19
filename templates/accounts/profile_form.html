@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+
+{% block title %}Редактирование профиля | EduTesting{% endblock %}
+
+{% block content %}
+<section class="panel panel-form">
+    <div class="section-heading">
+        <span class="eyebrow">Настройки профиля</span>
+        <h1>Редактирование данных</h1>
+        <p>Поддерживайте контактные данные и учебную информацию в актуальном состоянии.</p>
+    </div>
+
+    <form method="post" class="stacked-form">
+        {% csrf_token %}
+        {% for field in form %}
+            <div class="form-field">
+                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}
+                    <div class="form-error">{{ field.errors|striptags }}</div>
+                {% endif %}
+            </div>
+        {% endfor %}
+        <div class="button-row">
+            <button type="submit" class="button button-primary">Сохранить</button>
+            <a class="button button-ghost" href="{% url 'accounts:profile' %}">Назад</a>
+        </div>
+    </form>
+</section>
+{% endblock %}

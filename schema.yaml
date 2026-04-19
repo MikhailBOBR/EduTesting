@@ -1,0 +1,604 @@
+openapi: 3.0.3
+info:
+  title: EduTesting API
+  version: 1.0.0
+  description: Минимальный демонстрационный API для курсового проекта по онлайн-тестированию
+    студентов.
+paths:
+  /api/courses/:
+    get:
+      operationId: courses_list
+      description: Возвращает краткий перечень курсов, доступных в системе.
+      summary: Список опубликованных курсов
+      tags:
+      - courses
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ApiCourseList'
+          description: ''
+  /api/courses/{id}/:
+    get:
+      operationId: courses_retrieve
+      description: Возвращает описание курса, опубликованные тесты и последние объявления.
+      summary: Детальная информация о курсе
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - courses
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiCourseDetail'
+          description: ''
+  /api/quizzes/{id}/:
+    get:
+      operationId: quizzes_retrieve
+      description: Возвращает параметры теста, вопросы и варианты ответов без проверки
+        ответов пользователя.
+      summary: Детальная информация о тесте
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - quizzes
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiQuizDetail'
+          description: ''
+  /api/schema/:
+    get:
+      operationId: schema_retrieve
+      description: |-
+        OpenApi3 schema for this API. Format can be selected via content negotiation.
+
+        - YAML: application/vnd.oai.openapi
+        - JSON: application/vnd.oai.openapi+json
+      parameters:
+      - in: query
+        name: format
+        schema:
+          type: string
+          enum:
+          - json
+          - yaml
+      - in: query
+        name: lang
+        schema:
+          type: string
+          enum:
+          - af
+          - ar
+          - ar-dz
+          - ast
+          - az
+          - be
+          - bg
+          - bn
+          - br
+          - bs
+          - ca
+          - ckb
+          - cs
+          - cy
+          - da
+          - de
+          - dsb
+          - el
+          - en
+          - en-au
+          - en-gb
+          - eo
+          - es
+          - es-ar
+          - es-co
+          - es-mx
+          - es-ni
+          - es-ve
+          - et
+          - eu
+          - fa
+          - fi
+          - fr
+          - fy
+          - ga
+          - gd
+          - gl
+          - he
+          - hi
+          - hr
+          - hsb
+          - hu
+          - hy
+          - ia
+          - id
+          - ig
+          - io
+          - is
+          - it
+          - ja
+          - ka
+          - kab
+          - kk
+          - km
+          - kn
+          - ko
+          - ky
+          - lb
+          - lt
+          - lv
+          - mk
+          - ml
+          - mn
+          - mr
+          - ms
+          - my
+          - nb
+          - ne
+          - nl
+          - nn
+          - os
+          - pa
+          - pl
+          - pt
+          - pt-br
+          - ro
+          - ru
+          - sk
+          - sl
+          - sq
+          - sr
+          - sr-latn
+          - sv
+          - sw
+          - ta
+          - te
+          - tg
+          - th
+          - tk
+          - tr
+          - tt
+          - udm
+          - uk
+          - ur
+          - uz
+          - vi
+          - zh-hans
+          - zh-hant
+      tags:
+      - schema
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/vnd.oai.openapi:
+              schema:
+                type: object
+                additionalProperties: {}
+            application/yaml:
+              schema:
+                type: object
+                additionalProperties: {}
+            application/vnd.oai.openapi+json:
+              schema:
+                type: object
+                additionalProperties: {}
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/stats/:
+    get:
+      operationId: stats_retrieve
+      description: Возвращает агрегированные показатели для демонстрации API в Swagger
+        и Postman.
+      summary: Сводная статистика сервиса
+      tags:
+      - stats
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiStats'
+              examples:
+                ПримерОтвета:
+                  value:
+                    courses: 5
+                    quizzes: 10
+                    students: 12
+                    submitted_attempts: 66
+                    announcements: 10
+                  summary: Пример ответа
+          description: ''
+components:
+  schemas:
+    ApiAnnouncement:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+          title: Заголовок
+          maxLength: 200
+        body:
+          type: string
+          title: Текст объявления
+        is_important:
+          type: boolean
+          title: Важное объявление
+        published_at:
+          type: string
+          format: date-time
+          title: Дата публикации
+      required:
+      - body
+      - id
+      - title
+    ApiChoice:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        text:
+          type: string
+          title: Вариант ответа
+          maxLength: 255
+        order:
+          type: integer
+          title: Порядок
+      required:
+      - id
+      - text
+    ApiCourseDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+          title: Название
+          maxLength: 200
+        subject_code:
+          type: string
+          title: Код дисциплины
+          maxLength: 30
+        summary:
+          type: string
+          title: Краткое описание
+          maxLength: 255
+        description:
+          type: string
+          title: Подробное описание
+        audience:
+          type: string
+          title: Целевая аудитория
+          maxLength: 120
+        semester:
+          allOf:
+          - $ref: '#/components/schemas/SemesterEnum'
+          title: Семестр
+        academic_year:
+          type: string
+          title: Учебный год
+          maxLength: 20
+        assessment_policy:
+          type: string
+          title: Политика оценивания
+        owner_name:
+          type: string
+          readOnly: true
+        total_students:
+          type: integer
+          readOnly: true
+        average_score:
+          type: integer
+          readOnly: true
+        completion_rate:
+          type: integer
+          readOnly: true
+        quizzes:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApiQuizSummary'
+          readOnly: true
+        announcements:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApiAnnouncement'
+          readOnly: true
+      required:
+      - announcements
+      - average_score
+      - completion_rate
+      - description
+      - id
+      - owner_name
+      - quizzes
+      - summary
+      - title
+      - total_students
+    ApiCourseList:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+          title: Название
+          maxLength: 200
+        subject_code:
+          type: string
+          title: Код дисциплины
+          maxLength: 30
+        summary:
+          type: string
+          title: Краткое описание
+          maxLength: 255
+        semester:
+          allOf:
+          - $ref: '#/components/schemas/SemesterEnum'
+          title: Семестр
+        academic_year:
+          type: string
+          title: Учебный год
+          maxLength: 20
+        owner_name:
+          type: string
+          readOnly: true
+        published_quizzes_count:
+          type: integer
+          readOnly: true
+      required:
+      - id
+      - owner_name
+      - published_quizzes_count
+      - summary
+      - title
+    ApiCourseReference:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+          title: Название
+          maxLength: 200
+        subject_code:
+          type: string
+          title: Код дисциплины
+          maxLength: 30
+      required:
+      - id
+      - title
+    ApiQuestion:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        text:
+          type: string
+          title: Текст вопроса
+        topic:
+          type: string
+          title: Тема
+          maxLength: 120
+        question_type:
+          allOf:
+          - $ref: '#/components/schemas/QuestionTypeEnum'
+          title: Тип вопроса
+        difficulty:
+          allOf:
+          - $ref: '#/components/schemas/DifficultyEnum'
+          title: Сложность
+        points:
+          type: integer
+          title: Баллы
+        order:
+          type: integer
+          title: Порядок
+        choices:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApiChoice'
+          readOnly: true
+      required:
+      - choices
+      - id
+      - text
+    ApiQuizDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+          title: Название теста
+          maxLength: 200
+        description:
+          type: string
+          title: Описание
+        instructions:
+          type: string
+          title: Инструкция
+        time_limit_minutes:
+          type: integer
+          title: Лимит времени, мин.
+        passing_score:
+          type: integer
+          title: Проходной балл, %
+        max_attempts:
+          type: integer
+          title: Максимум попыток
+        available_from:
+          type: string
+          format: date-time
+          nullable: true
+          title: Доступен с
+        available_until:
+          type: string
+          format: date-time
+          nullable: true
+          title: Доступен до
+        show_correct_answers:
+          type: boolean
+          title: Показывать правильные ответы студенту
+        question_count:
+          type: integer
+          readOnly: true
+        total_points:
+          type: integer
+          readOnly: true
+        is_available:
+          type: boolean
+          readOnly: true
+        course:
+          allOf:
+          - $ref: '#/components/schemas/ApiCourseReference'
+          readOnly: true
+        questions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApiQuestion'
+          readOnly: true
+      required:
+      - course
+      - id
+      - is_available
+      - question_count
+      - questions
+      - title
+      - total_points
+    ApiQuizSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+          title: Название теста
+          maxLength: 200
+        description:
+          type: string
+          title: Описание
+        time_limit_minutes:
+          type: integer
+          title: Лимит времени, мин.
+        passing_score:
+          type: integer
+          title: Проходной балл, %
+        max_attempts:
+          type: integer
+          title: Максимум попыток
+        question_count:
+          type: integer
+          readOnly: true
+        total_points:
+          type: integer
+          readOnly: true
+        is_published:
+          type: boolean
+          title: Опубликован
+      required:
+      - id
+      - question_count
+      - title
+      - total_points
+    ApiStats:
+      type: object
+      properties:
+        courses:
+          type: integer
+        quizzes:
+          type: integer
+        students:
+          type: integer
+        submitted_attempts:
+          type: integer
+        announcements:
+          type: integer
+      required:
+      - announcements
+      - courses
+      - quizzes
+      - students
+      - submitted_attempts
+    DifficultyEnum:
+      enum:
+      - basic
+      - intermediate
+      - advanced
+      type: string
+      description: |-
+        * `basic` - Базовый
+        * `intermediate` - Повышенный
+        * `advanced` - Высокий
+    QuestionTypeEnum:
+      enum:
+      - single
+      - multiple
+      type: string
+      description: |-
+        * `single` - Один вариант
+        * `multiple` - Несколько вариантов
+    SemesterEnum:
+      enum:
+      - autumn
+      - spring
+      type: string
+      description: |-
+        * `autumn` - Осенний семестр
+        * `spring` - Весенний семестр
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sessionid

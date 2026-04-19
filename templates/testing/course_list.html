@@ -1,0 +1,121 @@
+{% extends 'base.html' %}
+
+{% block title %}Каталог курсов | EduTesting{% endblock %}
+
+{% block content %}
+<section class="page-header page-header--split">
+    <div>
+        <div class="section-kicker">Каталог дисциплин</div>
+        <h1>Курсы и образовательные модули</h1>
+        <p class="muted">Используйте фильтрацию по семестру и поисковый запрос, чтобы быстро найти нужную дисциплину.</p>
+    </div>
+    <div class="button-row">
+        {% if request.user.is_authenticated and request.user.is_teacher %}
+            <a class="button button-primary" href="{% url 'testing:course_create' %}">Создать курс</a>
+        {% endif %}
+    </div>
+</section>
+
+<section class="grid-2">
+    <article class="panel">
+        <div class="panel__header">
+            <div class="section-kicker">Поиск</div>
+            <h2>Фильтр курсов</h2>
+        </div>
+        <form method="get" class="stacked-form">
+            <div class="form-grid">
+                {% for field in filter_form %}
+                    <div class="form-field">
+                        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                        {{ field }}
+                    </div>
+                {% endfor %}
+            </div>
+            <div class="button-row">
+                <button type="submit" class="button button-primary">Применить фильтр</button>
+                <a class="button button-secondary" href="{% url 'testing:course_list' %}">Сбросить</a>
+            </div>
+        </form>
+    </article>
+
+    {% if request.user.is_authenticated and request.user.is_student %}
+        <article class="panel">
+            <div class="panel__header">
+                <div class="section-kicker">Подключение</div>
+                <h2>Вступить в курс по коду</h2>
+            </div>
+            <form method="post" action="{% url 'testing:course_join_by_code' %}" class="stacked-form">
+                {% csrf_token %}
+                {% for field in join_form %}
+                    <div class="form-field">
+                        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                        {{ field }}
+                    </div>
+                {% endfor %}
+                <button type="submit" class="button button-primary">Подключить</button>
+            </form>
+        </article>
+    {% else %}
+        <article class="panel">
+            <div class="panel__header">
+                <div class="section-kicker">Информация</div>
+                <h2>Принцип работы каталога</h2>
+            </div>
+            <ul class="list-plain">
+                <li>Студенты видят только опубликованные дисциплины.</li>
+                <li>Преподаватель дополнительно видит собственные черновики.</li>
+                <li>После подключения к курсу тесты становятся доступны в рабочей панели.</li>
+            </ul>
+        </article>
+    {% endif %}
+</section>
+
+<section class="panel">
+    <div class="panel__header">
+        <div class="section-kicker">Результаты</div>
+        <h2>Найденные курсы</h2>
+    </div>
+
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Дисциплина</th>
+                    <th>Код</th>
+                    <th>Семестр</th>
+                    <th>Учебный год</th>
+                    <th>Преподаватель</th>
+                    <th>Статус</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for course in courses %}
+                    <tr>
+                        <td>
+                            <strong>{{ course.title }}</strong><br>
+                            <span class="muted">{{ course.summary }}</span>
+                        </td>
+                        <td>{{ course.subject_code|default:'—' }}</td>
+                        <td>{{ course.get_semester_display }}</td>
+                        <td>{{ course.academic_year }}</td>
+                        <td>{{ course.owner.get_full_name|default:course.owner.username }}</td>
+                        <td>
+                            {% if course.is_published %}
+                                <span class="badge badge-success">Опубликован</span>
+                            {% else %}
+                                <span class="badge badge-warning">Черновик</span>
+                            {% endif %}
+                        </td>
+                        <td><a href="{% url 'testing:course_detail' course.pk %}">Подробнее</a></td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="7">По вашему запросу курсы не найдены.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

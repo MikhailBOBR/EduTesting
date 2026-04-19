@@ -1,0 +1,804 @@
+from datetime import timedelta
+
+from django.core.exceptions import ValidationError
+from django.test import TestCase
+from django.urls import reverse
+from django.utils import timezone
+
+from accounts.models import User, UserRole
+
+from .forms import AttemptForm, JoinCourseForm, QuizForm
+from .models import (
+    Announcement,
+    Attempt,
+    AttemptStatus,
+    Choice,
+    Course,
+    Enrollment,
+    Question,
+    QuestionType,
+    Quiz,
+    SemesterChoices,
+)
+from .services import submit_attempt
+
+
+class TestingBaseMixin:
+    @classmethod
+    def setUpTestData(cls):
+        now = timezone.now()
+        cls.teacher = User.objects.create_user(
+            username='teacher',
+            email='teacher@example.com',
+            password='TeacherPass123!',
+            first_name='Anna',
+            last_name='Teacher',
+            role=UserRole.TEACHER,
+        )
+        cls.second_teacher = User.objects.create_user(
+            username='teacher_two',
+            email='teacher_two@example.com',
+            password='TeacherPass123!',
+            first_name='Olga',
+            last_name='Reviewer',
+            role=UserRole.TEACHER,
+        )
+        cls.student = User.objects.create_user(
+            username='student',
+            email='student@example.com',
+            password='StudentPass123!',
+            first_name='Ivan',
+            last_name='Student',
+            role=UserRole.STUDENT,
+            academic_group='IS-21',
+        )
+        cls.other_student = User.objects.create_user(
+            username='student_two',
+            email='student_two@example.com',
+            password='StudentPass123!',
+            first_name='Maria',
+            last_name='Tester',
+            role=UserRole.STUDENT,
+            academic_group='IS-22',
+        )
+
+        cls.course = Course.objects.create(
+            title='Python and Django',
+            subject_code='WEB-301',
+            summary='Course about backend web development.',
+            description='Study of Django architecture and student testing services.',
+            audience='Third-year students',
+            semester=SemesterChoices.AUTUMN,
+            academic_year='2025/2026',
+            assessment_policy='Score is based on tests and practice tasks.',
+            owner=cls.teacher,
+            is_published=True,
+        )
+        cls.unpublished_course = Course.objects.create(
+            title='Private Teacher Course',
+            subject_code='WEB-999',
+            summary='Draft course.',
+            description='Hidden teacher-only course.',
+            audience='Teacher group',
+            semester=SemesterChoices.SPRING,
+            owner=cls.teacher,
+            is_published=False,
+        )
+        cls.foreign_course = Course.objects.create(
+            title='QA Fundamentals',
+            subject_code='QA-401',
+            summary='Independent course of another teacher.',
+            description='Course for software testing basics.',
+            audience='Fourth-year students',
+            semester=SemesterChoices.SPRING,
+            owner=cls.second_teacher,
+            is_published=True,
+        )
+
+        cls.announcement = Announcement.objects.create(
+            course=cls.course,
+            title='Module start',
+            body='Please complete the entrance test before the end of the week.',
+            is_important=True,
+        )
+        Enrollment.objects.create(course=cls.course, student=cls.student)
+
+        cls.quiz = Quiz.objects.create(
+            course=cls.course,
+            title='Django Basics',
+            description='Test on core Django concepts.',
+            instructions='Choose the correct answers.',
+            time_limit_minutes=20,
+            passing_score=60,
+            max_attempts=2,
+            available_from=now - timedelta(days=1),
+            available_until=now + timedelta(days=1),
+            show_correct_answers=True,
+            is_published=True,
+        )
+        cls.hidden_quiz = Quiz.objects.create(
+            course=cls.course,
+            title='Models and ORM',
+            description='Result page hides answer key from students.',
+            instructions='Choose one correct answer.',
+            time_limit_minutes=10,
+            passing_score=60,
+            max_attempts=1,
+            available_from=now - timedelta(days=1),
+            available_until=now + timedelta(days=1),
+            show_correct_answers=False,
+            is_published=True,
+        )
+
+        cls.question_single = Question.objects.create(
+            quiz=cls.quiz,
+            text='Which architecture pattern does Django use?',
+            topic='Architecture',
+            explanation='Django projects are built around MVT.',
+            question_type=QuestionType.SINGLE,
+            difficulty='basic',
+            points=2,
+            order=1,
+        )
+        cls.single_wrong = Choice.objects.create(
+            question=cls.question_single,
+            text='MVC',
+            is_correct=False,
+            order=1,
+        )
+        cls.single_correct = Choice.objects.create(
+            question=cls.question_single,
+            text='MVT',
+            is_correct=True,
+            order=2,
+        )
+        cls.question_multi = Question.objects.create(
+            quiz=cls.quiz,
+            text='What belongs to Django ORM?',
+            topic='ORM',
+            explanation='Migrations and the Python query API belong to ORM.',
+            question_type=QuestionType.MULTIPLE,
+            difficulty='intermediate',
+            points=3,
+            order=2,
+        )
+        cls.multi_correct_1 = Choice.objects.create(
+            question=cls.question_multi,
+            text='Migrations',
+            is_correct=True,
+            order=1,
+        )
+        cls.multi_wrong = Choice.objects.create(
+            question=cls.question_multi,
+            text='HTML templating only',
+            is_correct=False,
+            order=2,
+        )
+        cls.multi_correct_2 = Choice.objects.create(
+            question=cls.question_multi,
+            text='Python query API',
+            is_correct=True,
+            order=3,
+        )
+        cls.hidden_question = Question.objects.create(
+            quiz=cls.hidden_quiz,
+            text='What is stored in models.py?',
+            topic='Project structure',
+            explanation='This file defines data models.',
+            question_type=QuestionType.SINGLE,
+            difficulty='basic',
+            points=1,
+            order=1,
+        )
+        cls.hidden_choice_wrong = Choice.objects.create(
+            question=cls.hidden_question,
+            text='HTML templates',
+            is_correct=False,
+            order=1,
+        )
+        cls.hidden_choice_correct = Choice.objects.create(
+            question=cls.hidden_question,
+            text='Data models',
+            is_correct=True,
+            order=2,
+        )
+
+    def correct_answers(self):
+        return {
+            self.question_single.id: {self.single_correct.id},
+            self.question_multi.id: {self.multi_correct_1.id, self.multi_correct_2.id},
+        }
+
+    def partial_answers(self):
+        return {
+            self.question_single.id: {self.single_correct.id},
+            self.question_multi.id: {self.multi_correct_1.id},
+        }
+
+    def hidden_answers(self):
+        return {
+            self.hidden_question.id: {self.hidden_choice_correct.id},
+        }
+
+    def create_submitted_attempt(self, student=None, quiz=None, answers_mapping=None, minutes_ago=5):
+        student = student or self.student
+        quiz = quiz or self.quiz
+        if answers_mapping is None:
+            answers_mapping = self.hidden_answers() if quiz == self.hidden_quiz else self.correct_answers()
+
+        attempt = Attempt.objects.create(quiz=quiz, student=student)
+        Attempt.objects.filter(pk=attempt.pk).update(started_at=timezone.now() - timedelta(minutes=minutes_ago))
+        attempt.refresh_from_db()
+        submit_attempt(attempt, answers_mapping)
+        attempt.refresh_from_db()
+        return attempt
+
+
+class ModelAndFormTests(TestingBaseMixin, TestCase):
+    def test_course_generates_access_code_on_save(self):
+        self.assertEqual(len(self.course.access_code), 8)
+        self.assertTrue(self.course.access_code.isalnum())
+        self.assertEqual(self.course.access_code, self.course.access_code.upper())
+
+    def test_course_clean_rejects_invalid_date_range(self):
+        course = Course(
+            title='Dates',
+            summary='Dates test',
+            description='Description',
+            owner=self.teacher,
+            start_date=timezone.now().date(),
+            end_date=(timezone.now() - timedelta(days=1)).date(),
+        )
+
+        with self.assertRaises(ValidationError):
+            course.full_clean()
+
+    def test_quiz_form_rejects_invalid_availability_range(self):
+        form = QuizForm(
+            data={
+                'title': 'Broken window',
+                'description': 'Description',
+                'instructions': 'Instructions',
+                'time_limit_minutes': 15,
+                'passing_score': 60,
+                'max_attempts': 1,
+                'available_from': '2026-01-10T12:00',
+                'available_until': '2026-01-09T12:00',
+                'show_correct_answers': True,
+                'is_published': True,
+            }
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn('available_until', form.errors)
+
+    def test_join_course_form_normalizes_access_code(self):
+        form = JoinCourseForm(data={'access_code': f'  {self.course.access_code.lower()}  '})
+        self.assertTrue(form.is_valid())
+        self.assertEqual(form.cleaned_data['access_code'], self.course.access_code)
+
+    def test_attempt_form_builds_answers_mapping(self):
+        form = AttemptForm(
+            data={
+                f'question_{self.question_single.id}': str(self.single_correct.id),
+                f'question_{self.question_multi.id}': [
+                    str(self.multi_correct_1.id),
+                    str(self.multi_correct_2.id),
+                ],
+            },
+            quiz=self.quiz,
+        )
+
+        self.assertTrue(form.is_valid())
+        self.assertEqual(form.get_answers_mapping(), self.correct_answers())
+
+    def test_quiz_and_course_metrics_reflect_submitted_attempts(self):
+        Enrollment.objects.create(course=self.course, student=self.other_student)
+        self.create_submitted_attempt(student=self.student)
+        self.create_submitted_attempt(student=self.other_student, answers_mapping=self.partial_answers())
+
+        self.assertEqual(self.quiz.submitted_attempts_count, 2)
+        self.assertEqual(self.quiz.average_score, 70)
+        self.assertEqual(self.quiz.pass_rate, 50)
+        self.assertEqual(self.course.average_score, 70)
+        self.assertEqual(self.course.completion_rate, 100)
+
+    def test_quiz_remaining_attempts_counts_only_submitted_attempts(self):
+        self.create_submitted_attempt(student=self.student)
+        Attempt.objects.create(quiz=self.quiz, student=self.student, status=AttemptStatus.IN_PROGRESS)
+
+        self.assertEqual(self.quiz.remaining_attempts(self.student), 1)
+
+    def test_unanswered_configuration_count_counts_questions_without_correct_choice(self):
+        question = Question.objects.create(
+            quiz=self.quiz,
+            text='Question without correct answer',
+            question_type=QuestionType.SINGLE,
+            points=1,
+            order=3,
+        )
+        Choice.objects.create(question=question, text='Wrong option', is_correct=False, order=1)
+
+        self.assertEqual(self.quiz.unanswered_configuration_count, 1)
+
+    def test_single_choice_question_rejects_second_correct_option(self):
+        duplicate_correct = Choice(
+            question=self.question_single,
+            text='MTV',
+            is_correct=True,
+            order=3,
+        )
+
+        with self.assertRaises(ValidationError):
+            duplicate_correct.full_clean()
+
+
+class ServiceTests(TestingBaseMixin, TestCase):
+    def test_submit_attempt_calculates_full_score_and_duration(self):
+        attempt = Attempt.objects.create(quiz=self.quiz, student=self.student)
+        Attempt.objects.filter(pk=attempt.pk).update(started_at=timezone.now() - timedelta(minutes=7))
+        attempt.refresh_from_db()
+
+        submit_attempt(attempt, self.correct_answers())
+
+        attempt.refresh_from_db()
+        self.assertEqual(attempt.status, AttemptStatus.SUBMITTED)
+        self.assertEqual(attempt.score_points, 5)
+        self.assertEqual(attempt.score_percent, 100)
+        self.assertEqual(attempt.correct_answers_count, 2)
+        self.assertGreaterEqual(attempt.duration_seconds, 0)
+        self.assertTrue(attempt.is_passed)
+
+    def test_submit_attempt_ignores_invalid_choice_ids_and_requires_exact_match(self):
+        attempt = Attempt.objects.create(quiz=self.quiz, student=self.student)
+
+        submit_attempt(
+            attempt,
+            {
+                self.question_single.id: {self.single_correct.id},
+                self.question_multi.id: {self.multi_correct_1.id, 999999},
+            },
+        )
+
+        attempt.refresh_from_db()
+        self.assertEqual(attempt.score_points, 2)
+        self.assertEqual(attempt.score_percent, 40)
+        self.assertEqual(attempt.correct_answers_count, 1)
+
+    def test_submit_attempt_replaces_previous_answers_on_resubmission(self):
+        attempt = Attempt.objects.create(quiz=self.quiz, student=self.student)
+        submit_attempt(attempt, self.partial_answers())
+        attempt.refresh_from_db()
+
+        self.assertEqual(attempt.answers.count(), 2)
+        self.assertEqual(attempt.score_percent, 40)
+
+        submit_attempt(attempt, self.correct_answers())
+        attempt.refresh_from_db()
+
+        self.assertEqual(attempt.answers.count(), 2)
+        self.assertEqual(attempt.score_percent, 100)
+        self.assertEqual(attempt.correct_answers_count, 2)
+
+
+class CourseAndDashboardViewTests(TestingBaseMixin, TestCase):
+    def test_course_list_hides_unpublished_course_for_guest(self):
+        response = self.client.get(reverse('testing:course_list'))
+        course_ids = {course.pk for course in response.context['courses']}
+
+        self.assertIn(self.course.pk, course_ids)
+        self.assertNotIn(self.unpublished_course.pk, course_ids)
+
+    def test_course_list_shows_teacher_own_unpublished_course(self):
+        self.client.force_login(self.teacher)
+        response = self.client.get(reverse('testing:course_list'))
+        course_ids = {course.pk for course in response.context['courses']}
+
+        self.assertIn(self.course.pk, course_ids)
+        self.assertIn(self.unpublished_course.pk, course_ids)
+
+    def test_course_list_filters_by_query_and_semester(self):
+        spring_course = Course.objects.create(
+            title='Spring Databases',
+            subject_code='DB-210',
+            summary='Course about SQL.',
+            description='Database design and queries.',
+            semester=SemesterChoices.SPRING,
+            owner=self.teacher,
+            is_published=True,
+        )
+
+        response = self.client.get(reverse('testing:course_list'), {'q': 'spring', 'semester': SemesterChoices.SPRING})
+        courses = list(response.context['courses'])
+
+        self.assertEqual(courses, [spring_course])
+
+    def test_course_detail_returns_404_for_unpublished_course_to_student(self):
+        self.client.force_login(self.student)
+        response = self.client.get(reverse('testing:course_detail', args=[self.unpublished_course.pk]))
+        self.assertEqual(response.status_code, 404)
+
+    def test_course_detail_for_enrolled_student_includes_progress_context(self):
+        self.create_submitted_attempt(student=self.student)
+        self.client.force_login(self.student)
+
+        response = self.client.get(reverse('testing:course_detail', args=[self.course.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context['is_enrolled'])
+        self.assertEqual(response.context['student_progress']['completed_quizzes'], 1)
+        self.assertEqual(response.context['student_progress']['pending_quizzes'], 1)
+
+    def test_course_detail_for_teacher_includes_student_rows(self):
+        self.client.force_login(self.teacher)
+        response = self.client.get(reverse('testing:course_detail', args=[self.course.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context['can_manage'])
+        self.assertEqual(len(response.context['student_rows']), 1)
+
+    def test_student_dashboard_shows_progress_summary(self):
+        self.create_submitted_attempt(student=self.student)
+        self.client.force_login(self.student)
+
+        response = self.client.get(reverse('testing:dashboard'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['summary']['courses'], 1)
+        self.assertEqual(response.context['summary']['completed_quizzes'], 1)
+        self.assertEqual(response.context['summary']['average_score'], 100)
+        self.assertEqual(response.context['summary']['pending_quizzes'], 1)
+
+    def test_teacher_dashboard_shows_management_summary(self):
+        self.create_submitted_attempt(student=self.student)
+        self.client.force_login(self.teacher)
+
+        response = self.client.get(reverse('testing:dashboard'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['summary']['courses'], 2)
+        self.assertEqual(response.context['summary']['students'], 1)
+        self.assertEqual(response.context['summary']['attempts'], 1)
+        self.assertEqual(response.context['summary']['average_score'], 100)
+
+
+class StudentFlowTests(TestingBaseMixin, TestCase):
+    def test_student_can_start_and_submit_quiz(self):
+        self.client.force_login(self.student)
+        start_response = self.client.post(reverse('testing:quiz_start', args=[self.quiz.pk]))
+
+        attempt = Attempt.objects.get(quiz=self.quiz, student=self.student, status=AttemptStatus.IN_PROGRESS)
+        self.assertRedirects(start_response, reverse('testing:attempt_detail', args=[attempt.pk]))
+
+        result_response = self.client.post(
+            reverse('testing:attempt_detail', args=[attempt.pk]),
+            {
+                f'question_{self.question_single.id}': str(self.single_correct.id),
+                f'question_{self.question_multi.id}': [
+                    str(self.multi_correct_1.id),
+                    str(self.multi_correct_2.id),
+                ],
+            },
+        )
+
+        self.assertRedirects(result_response, reverse('testing:attempt_result', args=[attempt.pk]))
+        attempt.refresh_from_db()
+        self.assertEqual(attempt.score_percent, 100)
+
+    def test_start_attempt_reuses_existing_in_progress_attempt(self):
+        existing_attempt = Attempt.objects.create(quiz=self.quiz, student=self.student)
+        self.client.force_login(self.student)
+
+        response = self.client.post(reverse('testing:quiz_start', args=[self.quiz.pk]))
+
+        self.assertRedirects(response, reverse('testing:attempt_detail', args=[existing_attempt.pk]))
+        self.assertEqual(
+            Attempt.objects.filter(quiz=self.quiz, student=self.student, status=AttemptStatus.IN_PROGRESS).count(),
+            1,
+        )
+
+    def test_student_cannot_start_quiz_without_enrollment(self):
+        foreign_quiz = Quiz.objects.create(
+            course=self.foreign_course,
+            title='Foreign quiz',
+            is_published=True,
+            available_from=timezone.now() - timedelta(days=1),
+            available_until=timezone.now() + timedelta(days=1),
+        )
+        self.client.force_login(self.student)
+
+        response = self.client.post(reverse('testing:quiz_start', args=[foreign_quiz.pk]))
+
+        self.assertRedirects(response, reverse('testing:course_detail', args=[self.foreign_course.pk]))
+        self.assertFalse(Attempt.objects.filter(quiz=foreign_quiz, student=self.student).exists())
+
+    def test_student_cannot_start_unavailable_quiz(self):
+        future_quiz = Quiz.objects.create(
+            course=self.course,
+            title='Future quiz',
+            is_published=True,
+            available_from=timezone.now() + timedelta(days=2),
+            available_until=timezone.now() + timedelta(days=3),
+        )
+        question = Question.objects.create(
+            quiz=future_quiz,
+            text='Future question',
+            question_type=QuestionType.SINGLE,
+            points=1,
+            order=1,
+        )
+        Choice.objects.create(question=question, text='Answer', is_correct=True, order=1)
+        self.client.force_login(self.student)
+
+        response = self.client.post(reverse('testing:quiz_start', args=[future_quiz.pk]))
+
+        self.assertRedirects(response, reverse('testing:quiz_detail', args=[future_quiz.pk]))
+        self.assertFalse(Attempt.objects.filter(quiz=future_quiz, student=self.student).exists())
+
+    def test_student_cannot_start_quiz_without_questions(self):
+        empty_quiz = Quiz.objects.create(
+            course=self.course,
+            title='Empty quiz',
+            is_published=True,
+            available_from=timezone.now() - timedelta(days=1),
+            available_until=timezone.now() + timedelta(days=1),
+        )
+        self.client.force_login(self.student)
+
+        response = self.client.post(reverse('testing:quiz_start', args=[empty_quiz.pk]))
+
+        self.assertRedirects(response, reverse('testing:quiz_detail', args=[empty_quiz.pk]))
+
+    def test_student_cannot_start_quiz_with_unconfigured_question(self):
+        broken_quiz = Quiz.objects.create(
+            course=self.course,
+            title='Broken quiz',
+            is_published=True,
+            available_from=timezone.now() - timedelta(days=1),
+            available_until=timezone.now() + timedelta(days=1),
+        )
+        broken_question = Question.objects.create(
+            quiz=broken_quiz,
+            text='Broken question',
+            question_type=QuestionType.SINGLE,
+            points=1,
+            order=1,
+        )
+        Choice.objects.create(question=broken_question, text='Wrong option', is_correct=False, order=1)
+        self.client.force_login(self.student)
+
+        response = self.client.post(reverse('testing:quiz_start', args=[broken_quiz.pk]))
+
+        self.assertRedirects(response, reverse('testing:quiz_detail', args=[broken_quiz.pk]))
+        self.assertFalse(Attempt.objects.filter(quiz=broken_quiz, student=self.student).exists())
+
+    def test_student_cannot_start_quiz_after_attempt_limit(self):
+        self.create_submitted_attempt(student=self.student)
+        self.create_submitted_attempt(student=self.student)
+        self.client.force_login(self.student)
+
+        response = self.client.post(reverse('testing:quiz_start', args=[self.quiz.pk]))
+
+        self.assertRedirects(response, reverse('testing:quiz_detail', args=[self.quiz.pk]))
+        self.assertEqual(
+            Attempt.objects.filter(quiz=self.quiz, student=self.student, status=AttemptStatus.IN_PROGRESS).count(),
+            0,
+        )
+
+    def test_student_can_join_course_by_access_code(self):
+        self.client.force_login(self.other_student)
+        response = self.client.post(
+            reverse('testing:course_join_by_code'),
+            {'access_code': self.course.access_code.lower()},
+        )
+
+        self.assertRedirects(response, reverse('testing:course_detail', args=[self.course.pk]))
+        self.assertTrue(Enrollment.objects.filter(course=self.course, student=self.other_student).exists())
+
+    def test_join_course_with_invalid_code_does_not_create_enrollment(self):
+        self.client.force_login(self.other_student)
+        response = self.client.post(reverse('testing:course_join_by_code'), {'access_code': 'WRONG123'})
+
+        self.assertRedirects(response, reverse('testing:dashboard'))
+        self.assertFalse(Enrollment.objects.filter(course=self.course, student=self.other_student).exists())
+
+    def test_student_can_enroll_via_course_endpoint(self):
+        self.client.force_login(self.other_student)
+        response = self.client.post(reverse('testing:course_enroll', args=[self.course.pk]))
+
+        self.assertRedirects(response, reverse('testing:course_detail', args=[self.course.pk]))
+        self.assertTrue(Enrollment.objects.filter(course=self.course, student=self.other_student).exists())
+
+    def test_attempt_detail_redirects_submitted_attempt_to_result(self):
+        attempt = self.create_submitted_attempt(student=self.student)
+        self.client.force_login(self.student)
+
+        response = self.client.get(reverse('testing:attempt_detail', args=[attempt.pk]))
+
+        self.assertRedirects(response, reverse('testing:attempt_result', args=[attempt.pk]))
+
+    def test_student_cannot_view_other_students_attempt(self):
+        Enrollment.objects.create(course=self.course, student=self.other_student)
+        attempt = self.create_submitted_attempt(student=self.other_student)
+        self.client.force_login(self.student)
+
+        response = self.client.get(reverse('testing:attempt_result', args=[attempt.pk]))
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_student_sees_hidden_answer_key_flag_in_result_context(self):
+        attempt = self.create_submitted_attempt(student=self.student, quiz=self.hidden_quiz)
+        self.client.force_login(self.student)
+
+        response = self.client.get(reverse('testing:attempt_result', args=[attempt.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context['show_answer_key'])
+
+    def test_teacher_still_sees_hidden_answer_key_in_result_context(self):
+        attempt = self.create_submitted_attempt(student=self.student, quiz=self.hidden_quiz)
+        self.client.force_login(self.teacher)
+
+        response = self.client.get(reverse('testing:attempt_result', args=[attempt.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context['show_answer_key'])
+
+
+class TeacherManagementTests(TestingBaseMixin, TestCase):
+    def test_teacher_can_create_course(self):
+        self.client.force_login(self.teacher)
+        response = self.client.post(
+            reverse('testing:course_create'),
+            {
+                'title': 'Databases',
+                'subject_code': 'DB-210',
+                'summary': 'SQL and design',
+                'description': 'Course on databases and schema design.',
+                'audience': 'Second-year students',
+                'semester': SemesterChoices.SPRING,
+                'academic_year': '2025/2026',
+                'assessment_policy': 'Score is based on labs and quizzes.',
+                'is_published': True,
+            },
+        )
+
+        created_course = Course.objects.get(title='Databases')
+        self.assertRedirects(response, reverse('testing:course_detail', args=[created_course.pk]))
+        self.assertEqual(created_course.owner, self.teacher)
+        self.assertEqual(created_course.subject_code, 'DB-210')
+
+    def test_teacher_can_publish_announcement(self):
+        self.client.force_login(self.teacher)
+        response = self.client.post(
+            reverse('testing:announcement_create', args=[self.course.pk]),
+            {
+                'title': 'Deadline update',
+                'body': 'The quiz deadline is extended until Sunday.',
+                'is_important': True,
+            },
+        )
+
+        self.assertRedirects(response, reverse('testing:course_detail', args=[self.course.pk]))
+        self.assertTrue(Announcement.objects.filter(course=self.course, title='Deadline update').exists())
+
+    def test_teacher_can_create_quiz(self):
+        self.client.force_login(self.teacher)
+        response = self.client.post(
+            reverse('testing:quiz_create', args=[self.course.pk]),
+            {
+                'title': 'Deployment basics',
+                'description': 'Questions about deployment.',
+                'instructions': 'Choose the correct option.',
+                'time_limit_minutes': 25,
+                'passing_score': 70,
+                'max_attempts': 3,
+                'available_from': '',
+                'available_until': '',
+                'show_correct_answers': True,
+                'is_published': True,
+            },
+        )
+
+        quiz = Quiz.objects.get(title='Deployment basics')
+        self.assertRedirects(response, reverse('testing:quiz_detail', args=[quiz.pk]))
+        self.assertEqual(quiz.course, self.course)
+
+    def test_teacher_can_view_quiz_attempts_analytics(self):
+        Enrollment.objects.create(course=self.course, student=self.other_student)
+        self.create_submitted_attempt(student=self.student)
+        self.create_submitted_attempt(student=self.other_student, answers_mapping=self.partial_answers())
+        self.client.force_login(self.teacher)
+
+        response = self.client.get(reverse('testing:quiz_attempts', args=[self.quiz.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['analytics']['attempts'], 2)
+        self.assertEqual(response.context['analytics']['average_score'], 70)
+        self.assertEqual(response.context['analytics']['pass_rate'], 50)
+
+    def test_teacher_can_view_student_attempt_result_for_owned_course(self):
+        attempt = self.create_submitted_attempt(student=self.student)
+        self.client.force_login(self.teacher)
+
+        response = self.client.get(reverse('testing:attempt_result', args=[attempt.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['attempt'].pk, attempt.pk)
+
+    def test_student_cannot_open_teacher_course_creation_page(self):
+        self.client.force_login(self.student)
+        response = self.client.get(reverse('testing:course_create'))
+        self.assertEqual(response.status_code, 403)
+
+    def test_student_cannot_open_quiz_attempts_page(self):
+        self.client.force_login(self.student)
+        response = self.client.get(reverse('testing:quiz_attempts', args=[self.quiz.pk]))
+        self.assertEqual(response.status_code, 404)
+
+    def test_other_teacher_cannot_edit_foreign_course(self):
+        self.client.force_login(self.second_teacher)
+        response = self.client.get(reverse('testing:course_edit', args=[self.course.pk]))
+        self.assertEqual(response.status_code, 404)
+
+    def test_other_teacher_cannot_view_student_attempt_result_for_foreign_course(self):
+        attempt = self.create_submitted_attempt(student=self.student)
+        self.client.force_login(self.second_teacher)
+
+        response = self.client.get(reverse('testing:attempt_result', args=[attempt.pk]))
+
+        self.assertEqual(response.status_code, 403)
+
+
+class ApiTests(TestingBaseMixin, TestCase):
+    def test_api_stats_returns_expected_keys(self):
+        self.create_submitted_attempt(student=self.student)
+
+        response = self.client.get(reverse('testing_api:stats'))
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data['courses'], 2)
+        self.assertEqual(data['quizzes'], 2)
+        self.assertEqual(data['students'], 1)
+        self.assertEqual(data['submitted_attempts'], 1)
+        self.assertEqual(data['announcements'], 1)
+
+    def test_api_course_list_returns_only_published_courses(self):
+        response = self.client.get(reverse('testing_api:course_list'))
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        titles = {item['title'] for item in data}
+
+        self.assertIn(self.course.title, titles)
+        self.assertIn(self.foreign_course.title, titles)
+        self.assertNotIn(self.unpublished_course.title, titles)
+
+    def test_api_course_detail_includes_quizzes_and_announcements(self):
+        response = self.client.get(reverse('testing_api:course_detail', args=[self.course.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data['title'], self.course.title)
+        self.assertEqual(len(data['quizzes']), 2)
+        self.assertEqual(len(data['announcements']), 1)
+        self.assertEqual(data['announcements'][0]['title'], self.announcement.title)
+
+    def test_api_quiz_detail_returns_questions_without_correctness_flags(self):
+        response = self.client.get(reverse('testing_api:quiz_detail', args=[self.quiz.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data['title'], self.quiz.title)
+        self.assertEqual(data['question_count'], 2)
+        self.assertEqual(len(data['questions']), 2)
+        self.assertNotIn('is_correct', data['questions'][0]['choices'][0])
+
+    def test_schema_and_swagger_pages_are_available(self):
+        schema_response = self.client.get(reverse('testing_api:schema'))
+        docs_response = self.client.get(reverse('testing_api:docs'))
+
+        self.assertEqual(schema_response.status_code, 200)
+        self.assertEqual(docs_response.status_code, 200)
+        self.assertIn(b'openapi', schema_response.content.lower())

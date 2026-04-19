@@ -1,0 +1,247 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ course.title }} | EduTesting{% endblock %}
+
+{% block content %}
+<section class="page-header page-header--split">
+    <div>
+        <div class="section-kicker">Карточка курса</div>
+        <h1>{{ course.title }}</h1>
+        <p class="muted">{{ course.description }}</p>
+        <div class="page-header__meta">
+            <span>Код дисциплины: {{ course.subject_code|default:'не указан' }}</span>
+            <span>{{ course.get_semester_display }}</span>
+            <span>{{ course.academic_year }}</span>
+            <span>Код доступа: {{ course.access_code }}</span>
+        </div>
+        <div class="button-row">
+            {% if can_manage %}
+                <a class="button button-primary" href="{% url 'testing:course_edit' course.pk %}">Редактировать курс</a>
+                <a class="button button-secondary" href="{% url 'testing:quiz_create' course.pk %}">Добавить тест</a>
+                <a class="button button-secondary" href="{% url 'testing:announcement_create' course.pk %}">Новое объявление</a>
+            {% elif request.user.is_authenticated and request.user.is_student %}
+                {% if is_enrolled %}
+                    <span class="badge badge-success">Вы подключены к курсу</span>
+                {% else %}
+                    <form method="post" action="{% url 'testing:course_enroll' course.pk %}" class="inline-form">
+                        {% csrf_token %}
+                        <button type="submit" class="button button-primary">Записаться на курс</button>
+                    </form>
+                {% endif %}
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card-list">
+        <article class="compact-card">
+            <div class="section-kicker">Преподаватель</div>
+            <h3>{{ course.owner.get_full_name|default:course.owner.username }}</h3>
+            <p class="muted">{{ course.audience|default:'Аудитория не указана' }}</p>
+        </article>
+        <article class="compact-card">
+            <div class="section-kicker">Оценивание</div>
+            <h3>Средний результат {{ course_average_score }}%</h3>
+            <p class="muted">Вовлеченность студентов: {{ course_completion_rate }}%</p>
+        </article>
+    </div>
+</section>
+
+<section class="stats-strip">
+    <article class="metric">
+        <span class="metric__value">{{ students_count }}</span>
+        <span class="metric__label">Активных студентов</span>
+    </article>
+    <article class="metric">
+        <span class="metric__value">{{ quiz_rows|length }}</span>
+        <span class="metric__label">Тестов в курсе</span>
+    </article>
+    <article class="metric">
+        <span class="metric__value">{{ course_average_score }}%</span>
+        <span class="metric__label">Средний результат</span>
+    </article>
+    <article class="metric">
+        <span class="metric__value">{{ course_completion_rate }}%</span>
+        <span class="metric__label">Вовлеченность</span>
+    </article>
+    <article class="metric">
+        <span class="metric__value">{{ announcements|length }}</span>
+        <span class="metric__label">Объявлений</span>
+    </article>
+</section>
+
+<section class="grid-2">
+    <article class="panel">
+        <div class="panel__header">
+            <div class="section-kicker">Структура курса</div>
+            <h2>Параметры дисциплины</h2>
+        </div>
+        <div class="table-wrap">
+            <table class="data-table">
+                <tbody>
+                    <tr>
+                        <th>Краткое описание</th>
+                        <td>{{ course.summary }}</td>
+                    </tr>
+                    <tr>
+                        <th>Целевая аудитория</th>
+                        <td>{{ course.audience|default:'Не указана' }}</td>
+                    </tr>
+                    <tr>
+                        <th>Сроки курса</th>
+                        <td>
+                            {% if course.start_date or course.end_date %}
+                                {{ course.start_date|default:'—' }} — {{ course.end_date|default:'—' }}
+                            {% else %}
+                                Сроки не указаны
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Политика оценивания</th>
+                        <td>{{ course.assessment_policy|default:'Политика оценивания пока не заполнена.' }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </article>
+
+    <article class="panel">
+        <div class="panel__header">
+            <div class="section-kicker">Объявления преподавателя</div>
+            <h2>Информационные сообщения</h2>
+        </div>
+        <div class="card-list">
+            {% for announcement in announcements %}
+                <article class="announcement">
+                    <div class="tag-row">
+                        {% if announcement.is_important %}
+                            <span class="badge badge-warning">Важное</span>
+                        {% endif %}
+                        <span class="meta-chip">{{ announcement.published_at|date:"d.m.Y H:i" }}</span>
+                    </div>
+                    <h3>{{ announcement.title }}</h3>
+                    <p class="muted">{{ announcement.body }}</p>
+                    {% if can_manage %}
+                        <a href="{% url 'testing:announcement_edit' announcement.pk %}">Редактировать</a>
+                    {% endif %}
+                </article>
+            {% empty %}
+                <div class="empty-state">Объявления по курсу пока не публиковались.</div>
+            {% endfor %}
+        </div>
+    </article>
+</section>
+
+<section class="panel">
+    <div class="panel__header">
+        <div class="section-kicker">Контроль знаний</div>
+        <h2>Тесты курса</h2>
+    </div>
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Тест</th>
+                    <th>Вопросы</th>
+                    <th>Баллы</th>
+                    <th>Попытки</th>
+                    <th>Средний результат</th>
+                    <th>Проходимость</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in quiz_rows %}
+                    <tr>
+                        <td>
+                            <strong>{{ row.quiz.title }}</strong><br>
+                            <span class="muted">{{ row.quiz.description|default:'Описание отсутствует.' }}</span>
+                        </td>
+                        <td>{{ row.question_count }}</td>
+                        <td>{{ row.total_points }}</td>
+                        <td>{{ row.submitted_attempts_count }}</td>
+                        <td>{{ row.average_score }}%</td>
+                        <td>{{ row.pass_rate }}%</td>
+                        <td class="data-table__actions">
+                            <a href="{% url 'testing:quiz_detail' row.quiz.pk %}">Открыть</a>
+                            {% if can_manage %}
+                                <a href="{% url 'testing:quiz_edit' row.quiz.pk %}">Изменить</a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="7">Тесты в курсе пока не созданы.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+{% if can_manage %}
+    <section class="panel">
+        <div class="panel__header">
+            <div class="section-kicker">Контингент</div>
+            <h2>Студенты курса</h2>
+        </div>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Студент</th>
+                        <th>Группа</th>
+                        <th>Статус</th>
+                        <th>Завершено тестов</th>
+                        <th>Средний балл</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in student_rows %}
+                        <tr>
+                            <td>{{ row.enrollment.student.get_full_name|default:row.enrollment.student.username }}</td>
+                            <td>{{ row.enrollment.student.academic_group|default:'—' }}</td>
+                            <td>{{ row.enrollment.get_status_display }}</td>
+                            <td>{{ row.completed_quizzes }}/{{ row.total_quizzes }}</td>
+                            <td>{{ row.average_score }}%</td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="5">На курс пока никто не записан.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+{% elif student_progress %}
+    <section class="panel">
+        <div class="panel__header">
+            <div class="section-kicker">Мой прогресс</div>
+            <h2>Сводка по текущему курсу</h2>
+        </div>
+        <div class="stats-strip">
+            <article class="metric">
+                <span class="metric__value">{{ student_progress.completed_quizzes }}</span>
+                <span class="metric__label">Пройдено тестов</span>
+            </article>
+            <article class="metric">
+                <span class="metric__value">{{ student_progress.total_quizzes }}</span>
+                <span class="metric__label">Всего тестов</span>
+            </article>
+            <article class="metric">
+                <span class="metric__value">{{ student_progress.progress_percent }}%</span>
+                <span class="metric__label">Текущий прогресс</span>
+            </article>
+            <article class="metric">
+                <span class="metric__value">{{ student_progress.average_score }}%</span>
+                <span class="metric__label">Средний результат</span>
+            </article>
+            <article class="metric">
+                <span class="metric__value">{{ student_progress.pending_quizzes }}</span>
+                <span class="metric__label">Осталось тестов</span>
+            </article>
+        </div>
+    </section>
+{% endif %}
+{% endblock %}

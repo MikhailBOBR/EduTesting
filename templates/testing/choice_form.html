@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ page_title }} | EduTesting{% endblock %}
+
+{% block content %}
+<section class="panel panel-form">
+    <div class="section-heading">
+        <div class="section-kicker">Варианты ответа</div>
+        <h1>{{ page_title }}</h1>
+        <p>Используйте отметку правильного варианта с учетом типа вопроса.</p>
+    </div>
+
+    {% if question %}
+        <div class="info-banner">
+            Вопрос: {{ question.text|truncatechars:150 }}
+        </div>
+    {% endif %}
+
+    <form method="post" class="stacked-form">
+        {% csrf_token %}
+        {% for field in form %}
+            <div class="form-field">
+                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}
+                    <div class="form-error">{{ field.errors|striptags }}</div>
+                {% endif %}
+            </div>
+        {% endfor %}
+        <div class="button-row">
+            <button type="submit" class="button button-primary">Сохранить вариант</button>
+            {% if question %}
+                <a class="button button-secondary" href="{% url 'testing:quiz_detail' question.quiz.pk %}">Назад к тесту</a>
+            {% endif %}
+        </div>
+    </form>
+</section>
+{% endblock %}

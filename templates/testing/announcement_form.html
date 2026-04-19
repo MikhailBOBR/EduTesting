@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ page_title }} | EduTesting{% endblock %}
+
+{% block content %}
+<section class="panel panel-form">
+    <div class="section-heading">
+        <div class="section-kicker">Объявления курса</div>
+        <h1>{{ page_title }}</h1>
+        <p>Используйте объявления для дедлайнов, организационных изменений и методических указаний.</p>
+    </div>
+
+    {% if course %}
+        <div class="info-banner">
+            Курс: <a href="{% url 'testing:course_detail' course.pk %}">{{ course.title }}</a>
+        </div>
+    {% endif %}
+
+    <form method="post" class="stacked-form">
+        {% csrf_token %}
+        {% for field in form %}
+            <div class="form-field">
+                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}
+                    <div class="form-error">{{ field.errors|striptags }}</div>
+                {% endif %}
+            </div>
+        {% endfor %}
+        <div class="button-row">
+            <button type="submit" class="button button-primary">Сохранить объявление</button>
+            {% if course %}
+                <a class="button button-secondary" href="{% url 'testing:course_detail' course.pk %}">Назад к курсу</a>
+            {% endif %}
+        </div>
+    </form>
+</section>
+{% endblock %}

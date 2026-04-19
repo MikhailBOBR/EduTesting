@@ -1,0 +1,215 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ quiz.title }} | EduTesting{% endblock %}
+
+{% block content %}
+<section class="page-header page-header--split">
+    <div>
+        <div class="section-kicker">Тестирование</div>
+        <h1>{{ quiz.title }}</h1>
+        <p class="muted">{{ quiz.description|default:"Описание теста не заполнено." }}</p>
+        <div class="page-header__meta">
+            <span>Курс: <a href="{% url 'testing:course_detail' quiz.course.pk %}">{{ quiz.course.title }}</a></span>
+            <span>Лимит времени: {{ quiz.time_limit_minutes }} мин.</span>
+            <span>Проходной балл: {{ quiz.passing_score }}%</span>
+            <span>Макс. попыток: {{ quiz.max_attempts }}</span>
+        </div>
+        <div class="button-row">
+            {% if can_manage %}
+                <a class="button button-primary" href="{% url 'testing:quiz_edit' quiz.pk %}">Редактировать тест</a>
+                <a class="button button-secondary" href="{% url 'testing:question_create' quiz.pk %}">Добавить вопрос</a>
+                <a class="button button-secondary" href="{% url 'testing:quiz_attempts' quiz.pk %}">Попытки студентов</a>
+            {% elif request.user.is_authenticated and request.user.is_student %}
+                {% if in_progress_attempt %}
+                    <a class="button button-primary" href="{% url 'testing:attempt_detail' in_progress_attempt.pk %}">Продолжить попытку</a>
+                {% elif can_start %}
+                    <form method="post" action="{% url 'testing:quiz_start' quiz.pk %}" class="inline-form">
+                        {% csrf_token %}
+                        <button type="submit" class="button button-primary">Начать тест</button>
+                    </form>
+                {% elif not is_enrolled %}
+                    <span class="badge badge-warning">Требуется запись на курс</span>
+                {% else %}
+                    <span class="badge">Тест сейчас недоступен</span>
+                {% endif %}
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card-list">
+        <article class="compact-card">
+            <div class="section-kicker">Статус</div>
+            <h3>
+                {% if quiz.is_available %}
+                    Тест доступен
+                {% else %}
+                    Доступ ограничен
+                {% endif %}
+            </h3>
+            <p class="muted">Правильные ответы студенту: {{ quiz.show_correct_answers|yesno:"показываются,скрываются" }}</p>
+        </article>
+        <article class="compact-card">
+            <div class="section-kicker">Попытки</div>
+            <h3>{{ remaining_attempts }}</h3>
+            <p class="muted">Осталось доступных попыток у текущего студента.</p>
+        </article>
+    </div>
+</section>
+
+<section class="stats-strip">
+    <article class="metric">
+        <span class="metric__value">{{ quiz_metrics.question_count }}</span>
+        <span class="metric__label">Вопросов</span>
+    </article>
+    <article class="metric">
+        <span class="metric__value">{{ quiz_metrics.total_points }}</span>
+        <span class="metric__label">Баллов</span>
+    </article>
+    <article class="metric">
+        <span class="metric__value">{{ quiz_metrics.submitted_attempts }}</span>
+        <span class="metric__label">Завершенных попыток</span>
+    </article>
+    <article class="metric">
+        <span class="metric__value">{{ quiz_metrics.average_score }}%</span>
+        <span class="metric__label">Средний результат</span>
+    </article>
+    <article class="metric">
+        <span class="metric__value">{{ quiz_metrics.pass_rate }}%</span>
+        <span class="metric__label">Проходимость</span>
+    </article>
+</section>
+
+{% if can_manage and quiz_metrics.unconfigured_questions %}
+    <section class="info-banner">
+        В тесте есть {{ quiz_metrics.unconfigured_questions }} вопрос(ов) без отмеченных правильных ответов.
+        До исправления студенты не смогут начать прохождение.
+    </section>
+{% endif %}
+
+<section class="grid-2">
+    <article class="panel">
+        <div class="panel__header">
+            <div class="section-kicker">Регламент</div>
+            <h2>Параметры прохождения</h2>
+        </div>
+        <div class="table-wrap">
+            <table class="data-table">
+                <tbody>
+                    <tr>
+                        <th>Инструкция</th>
+                        <td>{{ quiz.instructions|default:'Инструкция преподавателем не заполнена.' }}</td>
+                    </tr>
+                    <tr>
+                        <th>Доступ с</th>
+                        <td>{{ quiz.available_from|date:"d.m.Y H:i"|default:"Без ограничения" }}</td>
+                    </tr>
+                    <tr>
+                        <th>Доступ до</th>
+                        <td>{{ quiz.available_until|date:"d.m.Y H:i"|default:"Без ограничения" }}</td>
+                    </tr>
+                    <tr>
+                        <th>Показ правильных ответов</th>
+                        <td>{{ quiz.show_correct_answers|yesno:"Да,Нет" }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </article>
+
+    <article class="panel">
+        <div class="panel__header">
+            <div class="section-kicker">История</div>
+            <h2>
+                {% if can_manage %}
+                    Последние попытки студентов
+                {% else %}
+                    Ваши завершенные попытки
+                {% endif %}
+            </h2>
+        </div>
+        <div class="card-list">
+            {% if can_manage %}
+                {% for attempt in recent_attempts %}
+                    <article class="card">
+                        <div class="tag-row">
+                            <span class="badge">{{ attempt.student.academic_group|default:"Без группы" }}</span>
+                            <span class="meta-chip">{{ attempt.submitted_at|date:"d.m.Y H:i" }}</span>
+                        </div>
+                        <h3>{{ attempt.student.get_full_name|default:attempt.student.username }}</h3>
+                        <p class="muted">{{ attempt.score_percent }}% • {{ attempt.correct_answers_count }}/{{ attempt.total_questions }}</p>
+                    </article>
+                {% empty %}
+                    <div class="empty-state">Завершенных попыток пока нет.</div>
+                {% endfor %}
+            {% else %}
+                {% for attempt in submitted_attempts %}
+                    <article class="card">
+                        <div class="tag-row">
+                            <span class="badge">{{ attempt.score_percent }}%</span>
+                            <span class="meta-chip">{{ attempt.submitted_at|date:"d.m.Y H:i" }}</span>
+                        </div>
+                        <h3>Попытка {{ forloop.counter }}</h3>
+                        <p class="muted">{{ attempt.correct_answers_count }}/{{ attempt.total_questions }} правильных ответов</p>
+                        <a href="{% url 'testing:attempt_result' attempt.pk %}">Открыть отчет</a>
+                    </article>
+                {% empty %}
+                    <div class="empty-state">История прохождений пока отсутствует.</div>
+                {% endfor %}
+            {% endif %}
+        </div>
+    </article>
+</section>
+
+<section class="panel">
+    <div class="panel__header">
+        <div class="section-kicker">Содержание теста</div>
+        <h2>Вопросы и варианты ответов</h2>
+    </div>
+    <div class="card-list">
+        {% for question in quiz.questions.all %}
+            <article class="question-card">
+                <div class="tag-row">
+                    <span class="badge">Вопрос {{ question.order }}</span>
+                    <span class="meta-chip">{{ question.get_question_type_display }}</span>
+                    <span class="meta-chip">{{ question.get_difficulty_display }}</span>
+                    <span class="meta-chip">{{ question.points }} балл(ов)</span>
+                    {% if question.topic %}
+                        <span class="meta-chip">{{ question.topic }}</span>
+                    {% endif %}
+                </div>
+                <h3>{{ question.text }}</h3>
+                {% if question.explanation and can_manage %}
+                    <p class="muted">Пояснение: {{ question.explanation }}</p>
+                {% endif %}
+
+                <ul class="choice-list">
+                    {% for choice in question.choices.all %}
+                        <li>
+                            <div class="summary-list">
+                                <span>{{ choice.text }}</span>
+                                {% if can_manage and choice.is_correct %}
+                                    <span class="badge badge-success">Правильный</span>
+                                {% endif %}
+                            </div>
+                        </li>
+                    {% empty %}
+                        <li>Варианты ответа еще не добавлены.</li>
+                    {% endfor %}
+                </ul>
+
+                {% if can_manage %}
+                    <div class="button-row">
+                        <a href="{% url 'testing:question_edit' question.pk %}">Редактировать вопрос</a>
+                        <a href="{% url 'testing:choice_create' question.pk %}">Добавить вариант ответа</a>
+                        {% for choice in question.choices.all %}
+                            <a href="{% url 'testing:choice_edit' choice.pk %}">Изменить вариант "{{ choice.text|truncatechars:30 }}"</a>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </article>
+        {% empty %}
+            <div class="empty-state">В тесте пока нет вопросов.</div>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}

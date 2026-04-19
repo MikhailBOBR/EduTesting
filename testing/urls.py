@@ -1,0 +1,59 @@
+from django.urls import path
+
+from .views import (
+    AnnouncementCreateView,
+    AnnouncementUpdateView,
+    AttemptDetailView,
+    AttemptResultView,
+    ChoiceCreateView,
+    ChoiceUpdateView,
+    CourseCreateView,
+    CourseDetailView,
+    CourseListView,
+    CourseUpdateView,
+    DashboardView,
+    EnrollInCourseView,
+    HomeView,
+    JoinCourseByCodeView,
+    QuestionCreateView,
+    QuestionUpdateView,
+    QuizAttemptsView,
+    QuizCreateView,
+    QuizDetailView,
+    QuizUpdateView,
+    StartAttemptView,
+)
+
+app_name = 'testing'
+
+urlpatterns = [
+    path('', HomeView.as_view(), name='home'),
+    path('dashboard/', DashboardView.as_view(), name='dashboard'),
+    path('courses/', CourseListView.as_view(), name='course_list'),
+    path('courses/create/', CourseCreateView.as_view(), name='course_create'),
+    path('courses/join/', JoinCourseByCodeView.as_view(), name='course_join_by_code'),
+    path('courses/<int:pk>/', CourseDetailView.as_view(), name='course_detail'),
+    path('courses/<int:pk>/edit/', CourseUpdateView.as_view(), name='course_edit'),
+    path('courses/<int:pk>/enroll/', EnrollInCourseView.as_view(), name='course_enroll'),
+    path(
+        'courses/<int:course_pk>/announcements/create/',
+        AnnouncementCreateView.as_view(),
+        name='announcement_create',
+    ),
+    path(
+        'announcements/<int:pk>/edit/',
+        AnnouncementUpdateView.as_view(),
+        name='announcement_edit',
+    ),
+    path('courses/<int:course_pk>/quizzes/create/', QuizCreateView.as_view(), name='quiz_create'),
+    path('quizzes/<int:pk>/', QuizDetailView.as_view(), name='quiz_detail'),
+    path('quizzes/<int:pk>/edit/', QuizUpdateView.as_view(), name='quiz_edit'),
+    path('quizzes/<int:quiz_pk>/questions/create/', QuestionCreateView.as_view(), name='question_create'),
+    path('questions/<int:pk>/edit/', QuestionUpdateView.as_view(), name='question_edit'),
+    path('questions/<int:question_pk>/choices/create/', ChoiceCreateView.as_view(), name='choice_create'),
+    path('choices/<int:pk>/edit/', ChoiceUpdateView.as_view(), name='choice_edit'),
+    path('quizzes/<int:pk>/start/', StartAttemptView.as_view(), name='quiz_start'),
+    path('quizzes/<int:pk>/attempts/', QuizAttemptsView.as_view(), name='quiz_attempts'),
+    path('attempts/<int:pk>/', AttemptDetailView.as_view(), name='attempt_detail'),
+    path('attempts/<int:pk>/result/', AttemptResultView.as_view(), name='attempt_result'),
+]

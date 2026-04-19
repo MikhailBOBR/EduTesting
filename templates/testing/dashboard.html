@@ -1,0 +1,273 @@
+{% extends 'base.html' %}
+
+{% block title %}Рабочая панель | EduTesting{% endblock %}
+
+{% block content %}
+<section class="page-header page-header--split">
+    <div class="page-header__body">
+        <div class="section-kicker">Рабочая панель</div>
+        <h1>{{ request.user.get_full_name|default:request.user.username }}</h1>
+        <p class="muted">
+            {{ request.user.get_role_display }}
+            {% if request.user.academic_group %}
+                • {{ request.user.academic_group }}
+            {% endif %}
+        </p>
+    </div>
+    <div class="button-row">
+        <a class="button button-secondary" href="{% url 'accounts:profile' %}">Профиль</a>
+        {% if request.user.is_teacher %}
+            <a class="button button-primary" href="{% url 'testing:course_create' %}">Создать курс</a>
+        {% endif %}
+    </div>
+</section>
+
+{% if request.user.is_teacher %}
+    <section class="stats-strip">
+        <article class="metric">
+            <span class="metric__value">{{ summary.courses }}</span>
+            <span class="metric__label">Курсов в управлении</span>
+        </article>
+        <article class="metric">
+            <span class="metric__value">{{ summary.students }}</span>
+            <span class="metric__label">Студентов</span>
+        </article>
+        <article class="metric">
+            <span class="metric__value">{{ summary.attempts }}</span>
+            <span class="metric__label">Завершенных попыток</span>
+        </article>
+        <article class="metric">
+            <span class="metric__value">{{ summary.average_score }}%</span>
+            <span class="metric__label">Средний результат</span>
+        </article>
+        <article class="metric">
+            <span class="metric__value">{{ recent_announcements|length }}</span>
+            <span class="metric__label">Последних объявлений</span>
+        </article>
+    </section>
+
+    <section class="grid-2">
+        <article class="panel">
+            <div class="panel__header">
+                <div class="section-kicker">Курсы</div>
+                <h2>Сводка по дисциплинам</h2>
+                <p>Основные показатели по опубликованным и управляемым курсам.</p>
+            </div>
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Курс</th>
+                            <th>Студенты</th>
+                            <th>Тесты</th>
+                            <th>Средний балл</th>
+                            <th>Проходимость</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in course_overview %}
+                            <tr>
+                                <td>
+                                    <strong>{{ row.course.title }}</strong><br>
+                                    <span class="muted">{{ row.course.subject_code|default:'Без кода' }}</span>
+                                </td>
+                                <td>{{ row.students }}</td>
+                                <td>{{ row.quizzes }}</td>
+                                <td>{{ row.average_score }}%</td>
+                                <td>{{ row.completion_rate }}%</td>
+                                <td><a href="{% url 'testing:course_detail' row.course.pk %}">Открыть</a></td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="6">Пока нет созданных курсов.</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </article>
+
+        <article class="panel">
+            <div class="panel__header">
+                <div class="section-kicker">Результаты</div>
+                <h2>Последние попытки студентов</h2>
+                <p>Последние завершенные тесты по вашим дисциплинам.</p>
+            </div>
+            <div class="card-list">
+                {% for attempt in recent_attempts %}
+                    <article class="card">
+                        <div class="tag-row">
+                            <span class="badge">{{ attempt.student.academic_group|default:"Без группы" }}</span>
+                            <span class="meta-chip">{{ attempt.submitted_at|date:"d.m.Y H:i" }}</span>
+                        </div>
+                        <h3>{{ attempt.student.get_full_name|default:attempt.student.username }}</h3>
+                        <p class="muted">{{ attempt.quiz.course.title }} • {{ attempt.quiz.title }}</p>
+                        <p class="muted">Результат: {{ attempt.score_percent }}% • {{ attempt.correct_answers_count }}/{{ attempt.total_questions }}</p>
+                        <a href="{% url 'testing:attempt_result' attempt.pk %}">Открыть отчет</a>
+                    </article>
+                {% empty %}
+                    <div class="empty-state">Попытки студентов еще не зафиксированы.</div>
+                {% endfor %}
+            </div>
+        </article>
+    </section>
+
+    <section class="panel">
+        <div class="panel__header">
+            <div class="section-kicker">Объявления</div>
+            <h2>Последние публикации по вашим курсам</h2>
+        </div>
+        <div class="grid-2">
+            {% for announcement in recent_announcements %}
+                <article class="announcement">
+                    <div class="tag-row">
+                        {% if announcement.is_important %}
+                            <span class="badge badge-warning">Важное</span>
+                        {% endif %}
+                        <span class="meta-chip">{{ announcement.course.title }}</span>
+                    </div>
+                    <h3>{{ announcement.title }}</h3>
+                    <p class="muted">{{ announcement.body|truncatechars:180 }}</p>
+                </article>
+            {% empty %}
+                <div class="empty-state">Объявления пока не публиковались.</div>
+            {% endfor %}
+        </div>
+    </section>
+{% else %}
+    <section class="stats-strip">
+        <article class="metric">
+            <span class="metric__value">{{ summary.courses }}</span>
+            <span class="metric__label">Подключенных курсов</span>
+        </article>
+        <article class="metric">
+            <span class="metric__value">{{ summary.completed_quizzes }}</span>
+            <span class="metric__label">Пройденных тестов</span>
+        </article>
+        <article class="metric">
+            <span class="metric__value">{{ summary.average_score }}%</span>
+            <span class="metric__label">Средний результат</span>
+        </article>
+        <article class="metric">
+            <span class="metric__value">{{ summary.pending_quizzes }}</span>
+            <span class="metric__label">Ожидающих тестов</span>
+        </article>
+        <article class="metric">
+            <span class="metric__value">{{ recent_announcements|length }}</span>
+            <span class="metric__label">Новых объявлений</span>
+        </article>
+    </section>
+
+    <section class="grid-2">
+        <article class="panel">
+            <div class="panel__header">
+                <div class="section-kicker">Подключение</div>
+                <h2>Запись на курс по коду</h2>
+                <p>Введите код, выданный преподавателем, чтобы добавить дисциплину в кабинет.</p>
+            </div>
+            <form method="post" action="{% url 'testing:course_join_by_code' %}" class="stacked-form">
+                {% csrf_token %}
+                {% for field in join_form %}
+                    <div class="form-field">
+                        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                        {{ field }}
+                    </div>
+                {% endfor %}
+                <button type="submit" class="button button-primary">Подключить курс</button>
+            </form>
+        </article>
+
+        <article class="panel">
+            <div class="panel__header">
+                <div class="section-kicker">Объявления</div>
+                <h2>Последние сообщения преподавателей</h2>
+            </div>
+            <div class="card-list">
+                {% for announcement in recent_announcements %}
+                    <article class="card">
+                        <div class="tag-row">
+                            {% if announcement.is_important %}
+                                <span class="badge badge-warning">Важное</span>
+                            {% endif %}
+                            <span class="meta-chip">{{ announcement.course.title }}</span>
+                        </div>
+                        <h3>{{ announcement.title }}</h3>
+                        <p class="muted">{{ announcement.body|truncatechars:180 }}</p>
+                    </article>
+                {% empty %}
+                    <div class="empty-state">Объявлений по вашим курсам пока нет.</div>
+                {% endfor %}
+            </div>
+        </article>
+    </section>
+
+    <section class="panel">
+        <div class="panel__header">
+            <div class="section-kicker">Прогресс</div>
+            <h2>Сводка по дисциплинам</h2>
+        </div>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Курс</th>
+                        <th>Преподаватель</th>
+                        <th>Прогресс</th>
+                        <th>Средний балл</th>
+                        <th>Осталось</th>
+                        <th>Следующий тест</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in course_progress %}
+                        <tr>
+                            <td>
+                                <strong><a href="{% url 'testing:course_detail' row.course.pk %}">{{ row.course.title }}</a></strong><br>
+                                <span class="muted">{{ row.course.subject_code|default:'Без кода' }}</span>
+                            </td>
+                            <td>{{ row.course.owner.get_full_name|default:row.course.owner.username }}</td>
+                            <td>{{ row.completed_quizzes }}/{{ row.total_quizzes }} • {{ row.progress_percent }}%</td>
+                            <td>{{ row.average_score }}%</td>
+                            <td>{{ row.pending_quizzes }}</td>
+                            <td>
+                                {% if row.next_quiz %}
+                                    <a href="{% url 'testing:quiz_detail' row.next_quiz.pk %}">{{ row.next_quiz.title }}</a>
+                                {% else %}
+                                    Все тесты завершены
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="6">Вы пока не подключили ни одного курса.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="panel">
+        <div class="panel__header">
+            <div class="section-kicker">История</div>
+            <h2>Последние завершенные попытки</h2>
+        </div>
+        <div class="card-list">
+            {% for attempt in recent_attempts %}
+                <article class="card">
+                    <div class="tag-row">
+                        <span class="badge">{{ attempt.quiz.course.title }}</span>
+                        <span class="meta-chip">{{ attempt.submitted_at|date:"d.m.Y H:i" }}</span>
+                    </div>
+                    <h3>{{ attempt.quiz.title }}</h3>
+                    <p class="muted">Результат: {{ attempt.score_percent }}% • {{ attempt.correct_answers_count }}/{{ attempt.total_questions }}</p>
+                    <a href="{% url 'testing:attempt_result' attempt.pk %}">Посмотреть отчет</a>
+                </article>
+            {% empty %}
+                <div class="empty-state">Завершенных тестов пока нет.</div>
+            {% endfor %}
+        </div>
+    </section>
+{% endif %}
+{% endblock %}

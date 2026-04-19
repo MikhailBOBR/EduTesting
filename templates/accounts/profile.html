@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+
+{% block title %}Профиль | EduTesting{% endblock %}
+
+{% block content %}
+<section class="page-header page-header--split">
+    <div class="page-header__body">
+        <div class="section-kicker">Профиль пользователя</div>
+        <h1>{{ request.user.get_full_name|default:request.user.username }}</h1>
+        <p class="muted">
+            {{ request.user.get_role_display }}
+            {% if request.user.academic_group %}
+                • {{ request.user.academic_group }}
+            {% endif %}
+        </p>
+    </div>
+    <div class="button-row">
+        <a class="button button-primary" href="{% url 'accounts:profile_edit' %}">Редактировать профиль</a>
+    </div>
+</section>
+
+<section class="stats-strip">
+    <article class="metric">
+        <span class="metric__value">{{ courses_count }}</span>
+        <span class="metric__label">{% if request.user.is_teacher %}Курсов в управлении{% else %}Записей на курсы{% endif %}</span>
+    </article>
+    <article class="metric">
+        <span class="metric__value">{{ tests_count }}</span>
+        <span class="metric__label">{% if request.user.is_teacher %}Проверенных попыток{% else %}Завершенных тестов{% endif %}</span>
+    </article>
+    <article class="metric">
+        <span class="metric__value">{{ request.user.email|default:"Не указана" }}</span>
+        <span class="metric__label">Электронная почта</span>
+    </article>
+</section>
+
+<section class="panel">
+    <div class="panel__header">
+        <div class="section-kicker">Активность</div>
+        <h2>Последние действия</h2>
+    </div>
+
+    <div class="card-list">
+        {% for item in recent_activity %}
+            <article class="card">
+                {% if request.user.is_teacher %}
+                    <h3>{{ item.student.get_full_name|default:item.student.username }} • {{ item.quiz.title }}</h3>
+                    <p class="muted">{{ item.quiz.course.title }} • Результат: {{ item.score_percent }}%</p>
+                {% else %}
+                    <h3>{{ item.quiz.title }}</h3>
+                    <p class="muted">{{ item.quiz.course.title }} • Результат: {{ item.score_percent }}%</p>
+                {% endif %}
+            </article>
+        {% empty %}
+            <div class="empty-state">История пока пуста.</div>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}
