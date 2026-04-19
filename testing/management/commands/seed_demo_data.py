@@ -30,6 +30,11 @@ TEACHERS = [
     ('teacher_qa', 'teacher_qa@example.com', 'Елена', 'Громова', 'Преподаватель по тестированию ПО.'),
 ]
 
+TEACHERS += [
+    ('teacher_algo', 'teacher_algo@example.com', 'Максим', 'Егоров', 'Преподаватель по алгоритмам и структурам данных.'),
+    ('teacher_net', 'teacher_net@example.com', 'Игорь', 'Морозов', 'Преподаватель по сетевым технологиям и клиент-серверным системам.'),
+]
+
 STUDENTS = [
     ('student_demo', 'student@example.com', 'Илья', 'Кузнецов', 'ИС-21'),
     ('student_01', 'student01@example.com', 'Марина', 'Алексеева', 'ИС-21'),
@@ -43,6 +48,17 @@ STUDENTS = [
     ('student_09', 'student09@example.com', 'Дарья', 'Орлова', 'ПИ-32'),
     ('student_10', 'student10@example.com', 'Егор', 'Киселев', 'ПИ-32'),
     ('student_11', 'student11@example.com', 'Полина', 'Тарасова', 'ПИ-32'),
+]
+
+STUDENTS += [
+    ('student_12', 'student12@example.com', 'Ирина', 'Белова', 'ИС-23'),
+    ('student_13', 'student13@example.com', 'Кирилл', 'Федоров', 'ИС-23'),
+    ('student_14', 'student14@example.com', 'Светлана', 'Сергеева', 'ПИ-33'),
+    ('student_15', 'student15@example.com', 'Андрей', 'Голубев', 'ПИ-33'),
+    ('student_16', 'student16@example.com', 'Наталья', 'Панова', 'ПО-41'),
+    ('student_17', 'student17@example.com', 'Роман', 'Давыдов', 'ПО-41'),
+    ('student_18', 'student18@example.com', 'Алина', 'Захарова', 'ПО-42'),
+    ('student_19', 'student19@example.com', 'Глеб', 'Новиков', 'ПО-42'),
 ]
 
 
@@ -59,7 +75,7 @@ def q(text, topic, qtype, difficulty, points, explanation, choices):
 
 
 def build_course_specs():
-    return [
+    base_specs = [
         {
             'title': 'Основы веб-разработки',
             'owner': 'teacher_demo',
@@ -270,6 +286,115 @@ def build_course_specs():
         },
     ]
 
+    extra_specs = [
+        {
+            'title': 'Алгоритмы и структуры данных',
+            'owner': 'teacher_algo',
+            'subject_code': 'CS-220',
+            'summary': 'Базовые алгоритмы, оценка сложности и структуры хранения данных.',
+            'description': 'Курс посвящен линейным структурам данных, деревьям, графам, сортировкам и анализу эффективности алгоритмов.',
+            'audience': 'Студенты 2-3 курса',
+            'semester': SemesterChoices.AUTUMN,
+            'academic_year': '2025/2026',
+            'assessment_policy': 'Оценка формируется из практических задач, рубежных тестов и итогового контроля.',
+            'enrollments': ['student_02', 'student_04', 'student_08', 'student_10', 'student_12', 'student_13', 'student_14', 'student_15', 'student_16'],
+            'completed': ['student_10', 'student_12'],
+            'in_progress': ['student_15'],
+            'announcements': [
+                ('Открыт модуль по сортировкам', 'В курсе доступны материалы по сортировке вставками, слиянием и быстрой сортировке.', False, -6),
+                ('Подготовка к тесту по деревьям', 'Повторите обходы деревьев и свойства сбалансированных структур.', True, -2),
+            ],
+            'quizzes': [
+                {
+                    'title': 'Сложность алгоритмов и сортировки',
+                    'description': 'Проверка по Big O, линейным алгоритмам и базовым методам сортировки.',
+                    'instructions': 'Внимательно сравнивайте сложность алгоритмов и свойства сортировок.',
+                    'time_limit_minutes': 25,
+                    'passing_score': 65,
+                    'max_attempts': 2,
+                    'show_correct_answers': True,
+                    'from_days': -7,
+                    'to_days': 18,
+                    'questions': [
+                        q('Что описывает нотация Big O?', 'Сложность', QuestionType.SINGLE, 'basic', 2, 'Big O оценивает верхнюю границу роста времени или памяти.', [('Количество строк кода', False), ('Асимптотическую сложность', True), ('Число тестов', False), ('Размер базы данных', False)]),
+                        q('Какие сортировки относятся к сравнению элементов?', 'Сортировки', QuestionType.MULTIPLE, 'intermediate', 3, 'Сортировка слиянием, пузырьком и быстрая сортировка основаны на сравнении элементов.', [('Merge sort', True), ('Quick sort', True), ('Bubble sort', True), ('Counting sort', False)]),
+                        q('Какую среднюю сложность обычно имеет quicksort?', 'Сортировки', QuestionType.SINGLE, 'intermediate', 3, 'В среднем quicksort работает за O(n log n).', [('O(n)', False), ('O(n log n)', True), ('O(n² log n)', False), ('O(log n)', False)]),
+                    ],
+                },
+                {
+                    'title': 'Структуры данных: стек, очередь, дерево',
+                    'description': 'Тест по базовым структурам данных и их применению.',
+                    'instructions': 'Проверьте знание операций и типовых сценариев использования структур данных.',
+                    'time_limit_minutes': 25,
+                    'passing_score': 65,
+                    'max_attempts': 2,
+                    'show_correct_answers': True,
+                    'from_days': -1,
+                    'to_days': 24,
+                    'questions': [
+                        q('Какой принцип работы у стека?', 'Стек', QuestionType.SINGLE, 'basic', 2, 'Стек работает по принципу LIFO.', [('FIFO', False), ('LIFO', True), ('Случайный доступ', False), ('Только чтение', False)]),
+                        q('Какие структуры данных обычно используют для представления иерархий?', 'Деревья', QuestionType.MULTIPLE, 'intermediate', 3, 'Деревья и их разновидности хорошо подходят для иерархий.', [('Binary tree', True), ('AVL tree', True), ('Queue', False), ('Hash set', False)]),
+                        q('Для чего удобно использовать очередь?', 'Очередь', QuestionType.SINGLE, 'basic', 2, 'Очередь удобна для обслуживания задач в порядке поступления.', [('Для отката операций', False), ('Для обработки задач по порядку', True), ('Для рекурсии', False), ('Для индексации таблиц', False)]),
+                    ],
+                },
+            ],
+        },
+        {
+            'title': 'Сетевые технологии',
+            'owner': 'teacher_net',
+            'subject_code': 'NET-315',
+            'summary': 'Протоколы, модель TCP/IP, адресация и клиент-серверное взаимодействие.',
+            'description': 'Курс охватывает основы сетевого взаимодействия, уровни модели TCP/IP, маршрутизацию, DNS, HTTP и безопасность доступа.',
+            'audience': 'Студенты 3-4 курса',
+            'semester': SemesterChoices.SPRING,
+            'academic_year': '2025/2026',
+            'assessment_policy': 'Учитываются лабораторные работы по сетевым протоколам и результаты промежуточных тестов.',
+            'enrollments': ['student_demo', 'student_01', 'student_05', 'student_07', 'student_11', 'student_14', 'student_16', 'student_17', 'student_18', 'student_19'],
+            'completed': ['student_18'],
+            'in_progress': ['student_17'],
+            'announcements': [
+                ('Открыт блок по HTTP и DNS', 'Проверьте материалы по разрешению имен, статус-кодам и структуре запросов.', False, -5),
+                ('Подготовка к тесту по TCP/IP', 'Повторите уровни модели, IP-адресацию и транспортные протоколы.', True, -1),
+            ],
+            'quizzes': [
+                {
+                    'title': 'Модель TCP/IP и маршрутизация',
+                    'description': 'Проверка по базовым сетевым уровням, IP-адресации и маршрутам.',
+                    'instructions': 'Сосредоточьтесь на назначении уровней и сетевых протоколов.',
+                    'time_limit_minutes': 25,
+                    'passing_score': 65,
+                    'max_attempts': 2,
+                    'show_correct_answers': True,
+                    'from_days': -4,
+                    'to_days': 20,
+                    'questions': [
+                        q('Какой протокол отвечает за надежную доставку данных?', 'Транспортный уровень', QuestionType.SINGLE, 'basic', 2, 'TCP обеспечивает надежную доставку, подтверждение и повторную передачу.', [('UDP', False), ('IP', False), ('TCP', True), ('ARP', False)]),
+                        q('Какие данные относятся к сетевой адресации?', 'Адресация', QuestionType.MULTIPLE, 'intermediate', 3, 'IP-адрес и маска подсети относятся к адресации.', [('IP address', True), ('Subnet mask', True), ('HTTP cookie', False), ('Template tag', False)]),
+                        q('Для чего нужен маршрутизатор?', 'Маршрутизация', QuestionType.SINGLE, 'basic', 2, 'Маршрутизатор передает пакеты между сетями.', [('Для хранения паролей', False), ('Для передачи пакетов между сетями', True), ('Для рендеринга HTML', False), ('Для компрессии изображений', False)]),
+                    ],
+                },
+                {
+                    'title': 'DNS, HTTP и веб-взаимодействие',
+                    'description': 'Тест по разрешению имен, HTTP-методам и клиент-серверной архитектуре.',
+                    'instructions': 'Вопросы охватывают DNS, статус-коды и основные HTTP-методы.',
+                    'time_limit_minutes': 20,
+                    'passing_score': 70,
+                    'max_attempts': 2,
+                    'show_correct_answers': True,
+                    'from_days': 2,
+                    'to_days': 28,
+                    'questions': [
+                        q('Для чего используется DNS?', 'DNS', QuestionType.SINGLE, 'basic', 2, 'DNS сопоставляет доменные имена и IP-адреса.', [('Для шифрования паролей', False), ('Для разрешения доменных имен', True), ('Для удаления cookies', False), ('Для кеширования CSS', False)]),
+                        q('Какие HTTP-методы обычно применяют для получения и отправки данных?', 'HTTP', QuestionType.MULTIPLE, 'basic', 3, 'GET используют для получения данных, POST — для отправки.', [('GET', True), ('POST', True), ('CSS', False), ('SMTP', False)]),
+                        q('Что означает код ответа 503?', 'HTTP', QuestionType.SINGLE, 'intermediate', 3, '503 означает временную недоступность сервиса.', [('Успешный ответ', False), ('Ресурс не найден', False), ('Сервис временно недоступен', True), ('Переадресация', False)]),
+                    ],
+                },
+            ],
+        },
+    ]
+
+    return base_specs + extra_specs
+
 
 class Command(BaseCommand):
     help = 'Создает расширенные демонстрационные данные для проекта онлайн-тестирования.'
@@ -290,6 +415,15 @@ class Command(BaseCommand):
         self._seed_attempts(course_specs, courses, students, now)
         self._seed_reviews(courses, now)
         self._seed_in_progress(course_specs, courses, students, now)
+
+        quizzes_count = sum(len(spec['quizzes']) for spec in course_specs)
+        questions_count = sum(len(quiz['questions']) for spec in course_specs for quiz in spec['quizzes'])
+        self.stdout.write(
+            f'Итоговое наполнение: {len(teachers)} преподавателей, {len(students)} студентов, '
+            f'{len(course_specs)} курсов, {quizzes_count} тестов и {questions_count} вопросов.'
+        )
+        self.stdout.write('Основные логины: teacher_demo / TeacherDemo123!, student_demo / StudentDemo123!')
+        return
 
         self.stdout.write(
             self.style.SUCCESS(
@@ -433,7 +567,7 @@ class Command(BaseCommand):
                 status=AttemptStatus.SUBMITTED,
             )
             .select_related('quiz__course__owner')
-            .order_by('quiz__course_id', '-score_percent', 'submitted_at')[:18]
+            .order_by('quiz__course_id', '-score_percent', 'submitted_at')[:30]
         )
 
         for attempt in reviewed_attempts:
