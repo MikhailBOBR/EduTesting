@@ -50,6 +50,73 @@
     </article>
 </section>
 
+{% if topic_insights.topic_rows %}
+    <section class="grid-2">
+        <article class="panel">
+            <div class="panel__header">
+                <div class="section-kicker">Диагностика</div>
+                <h2>Результат по темам</h2>
+            </div>
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Тема</th>
+                            <th>Точность</th>
+                            <th>Баллы</th>
+                            <th>Статус</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in topic_insights.topic_rows %}
+                            <tr>
+                                <td>{{ row.topic }}</td>
+                                <td>{{ row.accuracy_percent }}%</td>
+                                <td>{{ row.awarded_points }}/{{ row.total_points }}</td>
+                                <td>
+                                    {% if row.status_code == 'stable' %}
+                                        <span class="badge badge-success">{{ row.status_label }}</span>
+                                    {% elif row.status_code == 'watch' %}
+                                        <span class="badge badge-warning">{{ row.status_label }}</span>
+                                    {% else %}
+                                        <span class="badge badge-danger">{{ row.status_label }}</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </article>
+
+        <article class="panel">
+            <div class="panel__header">
+                <div class="section-kicker">Рекомендации</div>
+                <h2>Что повторить после попытки</h2>
+            </div>
+            <div class="card-list">
+                {% if topic_insights.weakest_topic %}
+                    <article class="card">
+                        <h3>Слабая тема: {{ topic_insights.weakest_topic.topic }}</h3>
+                        <p class="muted">{{ topic_insights.weakest_topic.recommendation }}</p>
+                    </article>
+                {% endif %}
+                {% if topic_insights.strongest_topic %}
+                    <article class="card">
+                        <h3>Сильная тема: {{ topic_insights.strongest_topic.topic }}</h3>
+                        <p class="muted">Эта тема получилась лучше остальных и может быть опорой при повторении.</p>
+                    </article>
+                {% endif %}
+                {% for recommendation in topic_insights.recommendations %}
+                    <article class="card">
+                        <p>{{ recommendation }}</p>
+                    </article>
+                {% endfor %}
+            </div>
+        </article>
+    </section>
+{% endif %}
+
 {% if not show_answer_key %}
     <section class="info-banner">
         Преподаватель отключил показ правильных ответов для студентов. Отчет содержит только выбранные вами варианты и итоговую оценку.

@@ -7,6 +7,12 @@ from django.utils import timezone
 
 from accounts.models import User, UserRole
 
+from .analytics import (
+    build_attempt_topic_insights,
+    build_course_attention_students,
+    build_course_topic_diagnostics,
+    build_student_topic_diagnostics,
+)
 from .forms import AttemptForm, JoinCourseForm, QuizForm
 from .models import (
     Announcement,
@@ -381,6 +387,51 @@ class ServiceTests(TestingBaseMixin, TestCase):
         self.assertEqual(attempt.correct_answers_count, 2)
 
 
+class AnalyticsTests(TestingBaseMixin, TestCase):
+    def test_build_student_topic_diagnostics_identifies_weak_topic(self):
+        self.create_submitted_attempt(student=self.student, answers_mapping=self.partial_answers())
+
+        diagnostics = build_student_topic_diagnostics(self.course, self.student)
+
+        self.assertEqual(diagnostics['overall_accuracy'], 50)
+        self.assertEqual(diagnostics['topic_rows'][0]['topic'], 'ORM')
+        self.assertEqual(diagnostics['topic_rows'][0]['status_code'], 'risk')
+        self.assertTrue(diagnostics['recommendations'])
+
+    def test_build_course_topic_diagnostics_aggregates_topic_statistics(self):
+        Enrollment.objects.create(course=self.course, student=self.other_student)
+        self.create_submitted_attempt(student=self.student, answers_mapping=self.partial_answers())
+        self.create_submitted_attempt(student=self.other_student, answers_mapping=self.correct_answers())
+
+        diagnostics = build_course_topic_diagnostics(self.course)
+
+        orm_row = next(row for row in diagnostics['topic_rows'] if row['topic'] == 'ORM')
+        self.assertEqual(diagnostics['overall_accuracy'], 75)
+        self.assertEqual(orm_row['students_count'], 2)
+        self.assertEqual(orm_row['attempts_count'], 2)
+        self.assertEqual(orm_row['accuracy_percent'], 50)
+
+    def test_build_course_attention_students_prioritizes_problem_student(self):
+        Enrollment.objects.create(course=self.course, student=self.other_student)
+        self.create_submitted_attempt(student=self.student, answers_mapping=self.partial_answers())
+        self.create_submitted_attempt(student=self.other_student, answers_mapping=self.correct_answers())
+
+        rows = build_course_attention_students(self.course)
+
+        self.assertEqual(rows[0]['student'], self.student)
+        self.assertEqual(rows[0]['status_code'], 'risk')
+        self.assertEqual(rows[0]['weakest_topic'], 'ORM')
+
+    def test_build_attempt_topic_insights_returns_strongest_and_weakest_topics(self):
+        attempt = self.create_submitted_attempt(student=self.student, answers_mapping=self.partial_answers())
+
+        insights = build_attempt_topic_insights(attempt)
+
+        self.assertEqual(insights['weakest_topic']['topic'], 'ORM')
+        self.assertEqual(insights['strongest_topic']['topic'], 'Architecture')
+        self.assertTrue(insights['recommendations'])
+
+
 class CourseAndDashboardViewTests(TestingBaseMixin, TestCase):
     def test_course_list_hides_unpublished_course_for_guest(self):
         response = self.client.get(reverse('testing:course_list'))
@@ -436,6 +487,33 @@ class CourseAndDashboardViewTests(TestingBaseMixin, TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.context['can_manage'])
         self.assertEqual(len(response.context['student_rows']), 1)
+
+    def test_student_can_open_course_insights_page_when_enrolled(self):
+        self.create_submitted_attempt(student=self.student, answers_mapping=self.partial_answers())
+        self.client.force_login(self.student)
+
+        response = self.client.get(reverse('testing:course_insights', args=[self.course.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context['can_manage'])
+        self.assertEqual(response.context['topic_diagnostics']['topic_rows'][0]['topic'], 'ORM')
+
+    def test_teacher_can_open_course_insights_page(self):
+        self.create_submitted_attempt(student=self.student, answers_mapping=self.partial_answers())
+        self.client.force_login(self.teacher)
+
+        response = self.client.get(reverse('testing:course_insights', args=[self.course.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context['can_manage'])
+        self.assertTrue(response.context['attention_students'])
+
+    def test_unenrolled_student_cannot_open_course_insights_page(self):
+        self.client.force_login(self.other_student)
+
+        response = self.client.get(reverse('testing:course_insights', args=[self.course.pk]))
+
+        self.assertEqual(response.status_code, 403)
 
     def test_student_dashboard_shows_progress_summary(self):
         self.create_submitted_attempt(student=self.student)
@@ -634,6 +712,7 @@ class StudentFlowTests(TestingBaseMixin, TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.context['show_answer_key'])
+        self.assertEqual(response.context['topic_insights']['weakest_topic']['topic'], 'Project structure')
 
     def test_teacher_still_sees_hidden_answer_key_in_result_context(self):
         attempt = self.create_submitted_attempt(student=self.student, quiz=self.hidden_quiz)

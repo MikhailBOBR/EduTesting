@@ -17,11 +17,13 @@
         <div class="button-row">
             {% if can_manage %}
                 <a class="button button-primary" href="{% url 'testing:course_edit' course.pk %}">Редактировать курс</a>
+                <a class="button button-secondary" href="{% url 'testing:course_insights' course.pk %}">Диагностика</a>
                 <a class="button button-secondary" href="{% url 'testing:quiz_create' course.pk %}">Добавить тест</a>
                 <a class="button button-secondary" href="{% url 'testing:announcement_create' course.pk %}">Новое объявление</a>
             {% elif request.user.is_authenticated and request.user.is_student %}
                 {% if is_enrolled %}
                     <span class="badge badge-success">Вы подключены к курсу</span>
+                    <a class="button button-secondary" href="{% url 'testing:course_insights' course.pk %}">Моя диагностика</a>
                 {% else %}
                     <form method="post" action="{% url 'testing:course_enroll' course.pk %}" class="inline-form">
                         {% csrf_token %}

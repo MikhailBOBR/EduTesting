@@ -9,6 +9,12 @@ from django.views.generic import CreateView, DetailView, ListView, TemplateView,
 
 from accounts.mixins import StudentRequiredMixin, TeacherRequiredMixin
 
+from .analytics import (
+    build_attempt_topic_insights,
+    build_course_attention_students,
+    build_course_topic_diagnostics,
+    build_student_topic_diagnostics,
+)
 from .forms import (
     AnnouncementForm,
     AttemptForm,
@@ -324,6 +330,49 @@ class CourseDetailView(DetailView):
             context['student_rows'] = build_teacher_student_rows(course)
         elif is_enrolled:
             context['student_progress'] = build_student_progress(course, user)
+
+        return context
+
+
+class CourseInsightsView(LoginRequiredMixin, DetailView):
+    model = Course
+    template_name = 'testing/course_insights.html'
+    context_object_name = 'course'
+
+    def get_queryset(self):
+        queryset = Course.objects.select_related('owner')
+        user = self.request.user
+        if user.is_authenticated and user.is_teacher:
+            return queryset.filter(Q(is_published=True) | Q(owner=user)).distinct()
+        return queryset.filter(is_published=True)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        course = self.object
+        user = self.request.user
+        can_manage = user.is_authenticated and user.is_teacher and course.owner_id == user.id
+        is_enrolled = (
+            user.is_authenticated
+            and user.is_student
+            and Enrollment.objects.filter(course=course, student=user).exists()
+        )
+
+        if not can_manage and not is_enrolled:
+            raise PermissionDenied
+
+        context.update(
+            {
+                'can_manage': can_manage,
+                'is_enrolled': is_enrolled,
+            }
+        )
+
+        if can_manage:
+            context['topic_diagnostics'] = build_course_topic_diagnostics(course)
+            context['attention_students'] = build_course_attention_students(course)
+        else:
+            context['student_progress'] = build_student_progress(course, user)
+            context['topic_diagnostics'] = build_student_topic_diagnostics(course, user)
 
         return context
 
@@ -781,6 +830,7 @@ class AttemptResultView(LoginRequiredMixin, DetailView):
             .all()
         )
         context['show_answer_key'] = show_answer_key
+        context['topic_insights'] = build_attempt_topic_insights(self.object)
         return context
 
 

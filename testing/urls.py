@@ -9,6 +9,7 @@ from .views import (
     ChoiceUpdateView,
     CourseCreateView,
     CourseDetailView,
+    CourseInsightsView,
     CourseListView,
     CourseUpdateView,
     DashboardView,
@@ -33,6 +34,7 @@ urlpatterns = [
     path('courses/create/', CourseCreateView.as_view(), name='course_create'),
     path('courses/join/', JoinCourseByCodeView.as_view(), name='course_join_by_code'),
     path('courses/<int:pk>/', CourseDetailView.as_view(), name='course_detail'),
+    path('courses/<int:pk>/insights/', CourseInsightsView.as_view(), name='course_insights'),
     path('courses/<int:pk>/edit/', CourseUpdateView.as_view(), name='course_edit'),
     path('courses/<int:pk>/enroll/', EnrollInCourseView.as_view(), name='course_enroll'),
     path(

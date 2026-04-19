@@ -1,0 +1,270 @@
+{% extends 'base.html' %}
+
+{% block title %}Диагностика курса | EduTesting{% endblock %}
+
+{% block content %}
+<section class="page-header page-header--split">
+    <div class="page-header__body">
+        <div class="section-kicker">Диагностика курса</div>
+        <h1>{{ course.title }}</h1>
+        <p class="muted">
+            {% if can_manage %}
+                Аналитика по темам и студентам помогает быстро увидеть слабые зоны курса.
+            {% else %}
+                Диагностика показывает ваши сильные и слабые темы по текущему курсу.
+            {% endif %}
+        </p>
+    </div>
+    <div class="button-row">
+        <a class="button button-secondary" href="{% url 'testing:course_detail' course.pk %}">Назад к курсу</a>
+    </div>
+</section>
+
+{% if can_manage %}
+    <section class="stats-strip">
+        <article class="metric">
+            <span class="metric__value">{{ topic_diagnostics.topic_rows|length }}</span>
+            <span class="metric__label">Тем в аналитике</span>
+        </article>
+        <article class="metric">
+            <span class="metric__value">{{ topic_diagnostics.weak_topics_count }}</span>
+            <span class="metric__label">Проблемных тем</span>
+        </article>
+        <article class="metric">
+            <span class="metric__value">{{ topic_diagnostics.total_answers }}</span>
+            <span class="metric__label">Проверенных ответов</span>
+        </article>
+        <article class="metric">
+            <span class="metric__value">{{ attention_students|length }}</span>
+            <span class="metric__label">Студентов в выборке</span>
+        </article>
+        <article class="metric">
+            <span class="metric__value">{{ topic_diagnostics.overall_accuracy }}%</span>
+            <span class="metric__label">Общая точность</span>
+        </article>
+    </section>
+
+    <section class="panel">
+        <div class="panel__header">
+            <div class="section-kicker">Темы</div>
+            <h2>Диагностика тем курса</h2>
+        </div>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Тема</th>
+                        <th>Ответов</th>
+                        <th>Попыток</th>
+                        <th>Студентов</th>
+                        <th>Точность</th>
+                        <th>Баллы</th>
+                        <th>Статус</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in topic_diagnostics.topic_rows %}
+                        <tr>
+                            <td>
+                                <strong>{{ row.topic }}</strong><br>
+                                <span class="muted">{{ row.recommendation }}</span>
+                            </td>
+                            <td>{{ row.total_questions }}</td>
+                            <td>{{ row.attempts_count }}</td>
+                            <td>{{ row.students_count }}</td>
+                            <td>{{ row.accuracy_percent }}%</td>
+                            <td>{{ row.awarded_points }}/{{ row.total_points }}</td>
+                            <td>
+                                {% if row.status_code == 'stable' %}
+                                    <span class="badge badge-success">{{ row.status_label }}</span>
+                                {% elif row.status_code == 'watch' %}
+                                    <span class="badge badge-warning">{{ row.status_label }}</span>
+                                {% else %}
+                                    <span class="badge badge-danger">{{ row.status_label }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="7">Диагностика появится после завершенных попыток студентов.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="panel">
+        <div class="panel__header">
+            <div class="section-kicker">Контроль группы</div>
+            <h2>Студенты, которым требуется внимание</h2>
+        </div>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Студент</th>
+                        <th>Средний балл</th>
+                        <th>Завершено</th>
+                        <th>Осталось</th>
+                        <th>Слабая тема</th>
+                        <th>Статус</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in attention_students %}
+                        <tr>
+                            <td>
+                                <strong>{{ row.student.get_full_name|default:row.student.username }}</strong><br>
+                                <span class="muted">{{ row.recommendation }}</span>
+                            </td>
+                            <td>{{ row.average_score }}%</td>
+                            <td>{{ row.completed_quizzes }}</td>
+                            <td>{{ row.pending_quizzes }}</td>
+                            <td>{{ row.weakest_topic|default:'Нет данных' }}</td>
+                            <td>
+                                {% if row.status_code == 'stable' %}
+                                    <span class="badge badge-success">{{ row.status_label }}</span>
+                                {% elif row.status_code == 'watch' %}
+                                    <span class="badge badge-warning">{{ row.status_label }}</span>
+                                {% else %}
+                                    <span class="badge badge-danger">{{ row.status_label }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="6">На курсе пока нет записанных студентов.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+{% else %}
+    <section class="stats-strip">
+        <article class="metric">
+            <span class="metric__value">{{ topic_diagnostics.topic_rows|length }}</span>
+            <span class="metric__label">Тем с результатами</span>
+        </article>
+        <article class="metric">
+            <span class="metric__value">{{ topic_diagnostics.stable_topics_count }}</span>
+            <span class="metric__label">Сильных тем</span>
+        </article>
+        <article class="metric">
+            <span class="metric__value">{{ topic_diagnostics.weak_topics|length }}</span>
+            <span class="metric__label">Слабых тем</span>
+        </article>
+        <article class="metric">
+            <span class="metric__value">{{ topic_diagnostics.overall_accuracy }}%</span>
+            <span class="metric__label">Общая точность</span>
+        </article>
+        <article class="metric">
+            <span class="metric__value">{{ student_progress.pending_quizzes }}</span>
+            <span class="metric__label">Осталось тестов</span>
+        </article>
+    </section>
+
+    <section class="grid-2">
+        <article class="panel">
+            <div class="panel__header">
+                <div class="section-kicker">Рекомендации</div>
+                <h2>Что делать дальше</h2>
+            </div>
+            <div class="card-list">
+                {% for recommendation in topic_diagnostics.recommendations %}
+                    <article class="card">
+                        <p>{{ recommendation }}</p>
+                    </article>
+                {% endfor %}
+                {% if student_progress.next_quiz %}
+                    <article class="card">
+                        <p>Следующий полезный шаг: пройти тест "{{ student_progress.next_quiz.title }}".</p>
+                    </article>
+                {% endif %}
+            </div>
+        </article>
+
+        <article class="panel">
+            <div class="panel__header">
+                <div class="section-kicker">Прогресс</div>
+                <h2>Сводка по курсу</h2>
+            </div>
+            <div class="table-wrap">
+                <table class="data-table">
+                    <tbody>
+                        <tr>
+                            <th>Пройдено тестов</th>
+                            <td>{{ student_progress.completed_quizzes }}/{{ student_progress.total_quizzes }}</td>
+                        </tr>
+                        <tr>
+                            <th>Средний результат</th>
+                            <td>{{ student_progress.average_score }}%</td>
+                        </tr>
+                        <tr>
+                            <th>Текущий прогресс</th>
+                            <td>{{ student_progress.progress_percent }}%</td>
+                        </tr>
+                        <tr>
+                            <th>Следующий тест</th>
+                            <td>
+                                {% if student_progress.next_quiz %}
+                                    <a href="{% url 'testing:quiz_detail' student_progress.next_quiz.pk %}">{{ student_progress.next_quiz.title }}</a>
+                                {% else %}
+                                    Все тесты по курсу уже завершены
+                                {% endif %}
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </article>
+    </section>
+
+    <section class="panel">
+        <div class="panel__header">
+            <div class="section-kicker">Темы</div>
+            <h2>Личная диагностика по темам</h2>
+        </div>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Тема</th>
+                        <th>Верных ответов</th>
+                        <th>Точность</th>
+                        <th>Баллы</th>
+                        <th>Статус</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in topic_diagnostics.topic_rows %}
+                        <tr>
+                            <td>
+                                <strong>{{ row.topic }}</strong><br>
+                                <span class="muted">{{ row.recommendation }}</span>
+                            </td>
+                            <td>{{ row.correct_answers }}/{{ row.total_questions }}</td>
+                            <td>{{ row.accuracy_percent }}%</td>
+                            <td>{{ row.awarded_points }}/{{ row.total_points }}</td>
+                            <td>
+                                {% if row.status_code == 'stable' %}
+                                    <span class="badge badge-success">{{ row.status_label }}</span>
+                                {% elif row.status_code == 'watch' %}
+                                    <span class="badge badge-warning">{{ row.status_label }}</span>
+                                {% else %}
+                                    <span class="badge badge-danger">{{ row.status_label }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="5">Диагностика появится после первой завершенной попытки.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+{% endif %}
+{% endblock %}
