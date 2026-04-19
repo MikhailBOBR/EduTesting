@@ -24,6 +24,10 @@
 </section>
 
 {% if can_manage %}
+    <section class="inline-note">
+        Рейтинг строится по лучшим завершенным попыткам, а выгрузка `CSV` содержит сводный журнал по всему курсу.
+    </section>
+
     <section class="stats-strip">
         <article class="metric">
             <span class="metric__value">{{ topic_diagnostics.topic_rows|length }}</span>
@@ -66,7 +70,7 @@
                 </thead>
                 <tbody>
                     {% for row in leaderboard %}
-                        <tr>
+                        <tr class="{% if row.rank <= 3 %}table-row-top{% elif row.status_code == 'risk' %}table-row-risk{% endif %}">
                             <td>{{ row.rank }}</td>
                             <td>{{ row.student.get_full_name|default:row.student.username }}</td>
                             <td>{{ row.completed_quizzes }}/{{ course.published_quizzes_count }}</td>
@@ -161,7 +165,7 @@
                 </thead>
                 <tbody>
                     {% for row in attention_students %}
-                        <tr>
+                        <tr class="{% if row.status_code == 'risk' %}table-row-risk{% endif %}">
                             <td>
                                 <strong>{{ row.student.get_full_name|default:row.student.username }}</strong><br>
                                 <span class="muted">{{ row.recommendation }}</span>
@@ -190,6 +194,10 @@
         </div>
     </section>
 {% else %}
+    <section class="inline-note">
+        Здесь собраны ваши слабые темы, общий прогресс по курсу и короткие рекомендации по следующему шагу.
+    </section>
+
     <section class="stats-strip">
         <article class="metric">
             <span class="metric__value">{{ topic_diagnostics.topic_rows|length }}</span>

@@ -67,6 +67,14 @@
             {{ attempt_review.reviewed_at|date:"d.m.Y H:i" }}
         </p>
     </section>
+{% elif can_review %}
+    <section class="inline-note">
+        Для этой попытки пока нет ручного комментария. При необходимости его можно добавить через кнопку вверху страницы.
+    </section>
+{% else %}
+    <section class="inline-note">
+        Комментарий преподавателя к этой попытке пока не добавлен.
+    </section>
 {% endif %}
 
 {% if topic_insights.topic_rows %}
