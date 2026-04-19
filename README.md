@@ -66,7 +66,9 @@
 - рейтинг студентов внутри курса;
 - комментарий преподавателя к попытке;
 - экспорт результатов курса в `CSV`;
-- read-only API для демонстрации backend-части;
+- API с токен-авторизацией для демонстрации backend-части через Swagger и Postman;
+- student API-сценарии: запись на курс, старт и отправка попытки;
+- teacher API-сценарии: просмотр аналитики и попыток по тесту;
 - Swagger UI для визуальной проверки API;
 - автотесты проекта.
 
@@ -338,14 +340,23 @@ KyrsBACK/
 
 ## 10. API и Swagger
 
-В проект добавлен **минимальный вспомогательный API**. Он не заменяет основной web-интерфейс, а нужен для демонстрации backend-слоя в отчете.
+В проект добавлен **небольшой, но полноценный API**. Он не заменяет основной web-интерфейс, а нужен для демонстрации backend-слоя в отчете через Swagger и Postman.
 
 Доступные API-маршруты:
 
+- `POST /api/auth/token/`
+- `GET /api/me/`
 - `GET /api/stats/`
 - `GET /api/courses/`
+- `GET /api/my/courses/`
 - `GET /api/courses/<id>/`
+- `POST /api/courses/<id>/enroll/`
+- `GET /api/courses/<id>/analytics/`
 - `GET /api/quizzes/<id>/`
+- `POST /api/quizzes/<id>/start/`
+- `GET /api/quizzes/<id>/attempts/`
+- `GET /api/attempts/<id>/`
+- `POST /api/attempts/<id>/submit/`
 - `GET /api/schema/`
 - `GET /api/docs/`
 
@@ -423,12 +434,21 @@ python manage.py runserver
 
 ### API
 
+- `/api/auth/token/` — получение токена
+- `/api/me/` — текущий пользователь
 - `/api/docs/` — Swagger UI
 - `/api/schema/` — OpenAPI schema
 - `/api/stats/` — сводная статистика
 - `/api/courses/` — список курсов
+- `/api/my/courses/` — мои курсы
 - `/api/courses/<id>/` — курс
+- `/api/courses/<id>/enroll/` — запись на курс
+- `/api/courses/<id>/analytics/` — аналитика курса
 - `/api/quizzes/<id>/` — тест
+- `/api/quizzes/<id>/start/` — старт попытки
+- `/api/quizzes/<id>/attempts/` — попытки по тесту
+- `/api/attempts/<id>/` — попытка
+- `/api/attempts/<id>/submit/` — отправка попытки
 
 ## 14. Тестирование проекта
 
@@ -454,7 +474,7 @@ python manage.py test
 
 Актуальное покрытие сценариев:
 
-- **68 автоматических тестов**
+- **76 автоматических тестов**
 
 ## 15. Дополнительные backend-фичи
 

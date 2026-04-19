@@ -5,16 +5,118 @@ info:
   description: Минимальный демонстрационный API для курсового проекта по онлайн-тестированию
     студентов.
 paths:
+  /api/attempts/{id}/:
+    get:
+      operationId: attempts_retrieve
+      summary: Детальная информация о попытке
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - attempts
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAttemptDetail'
+          description: ''
+  /api/attempts/{id}/submit/:
+    post:
+      operationId: attempts_submit_create
+      summary: Отправка попытки на проверку
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - attempts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApiAttemptSubmitRequest'
+            examples:
+              ПримерТелаЗапроса:
+                value:
+                  answers:
+                    '1':
+                    - 2
+                    '2':
+                    - 4
+                    - 6
+                summary: Пример тела запроса
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ApiAttemptSubmitRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ApiAttemptSubmitRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAttemptDetail'
+          description: ''
+  /api/auth/token/:
+    post:
+      operationId: auth_token_create
+      description: Авторизует пользователя по логину и паролю и возвращает токен для
+        дальнейшей работы в Postman и Swagger.
+      summary: Получение токена авторизации
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApiTokenRequest'
+            examples:
+              ПримерЗапроса:
+                value:
+                  username: student_demo
+                  password: StudentDemo123!
+                summary: Пример запроса
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ApiTokenRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ApiTokenRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiTokenResponse'
+          description: ''
   /api/courses/:
     get:
       operationId: courses_list
-      description: Возвращает краткий перечень курсов, доступных в системе.
       summary: Список опубликованных курсов
       tags:
       - courses
       security:
+      - tokenAuth: []
       - cookieAuth: []
-      - basicAuth: []
       - {}
       responses:
         '200':
@@ -28,7 +130,6 @@ paths:
   /api/courses/{id}/:
     get:
       operationId: courses_retrieve
-      description: Возвращает описание курса, опубликованные тесты и последние объявления.
       summary: Детальная информация о курсе
       parameters:
       - in: path
@@ -39,8 +140,8 @@ paths:
       tags:
       - courses
       security:
+      - tokenAuth: []
       - cookieAuth: []
-      - basicAuth: []
       - {}
       responses:
         '200':
@@ -49,11 +150,101 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiCourseDetail'
           description: ''
+  /api/courses/{id}/analytics/:
+    get:
+      operationId: courses_analytics_retrieve
+      summary: Аналитика курса для преподавателя
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - courses
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiCourseAnalytics'
+          description: ''
+  /api/courses/{id}/enroll/:
+    post:
+      operationId: courses_enroll_create
+      summary: Запись студента на курс
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - courses
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApiEnrollmentResponse'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ApiEnrollmentResponse'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ApiEnrollmentResponse'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnrollmentResponse'
+          description: ''
+  /api/me/:
+    get:
+      operationId: me_retrieve
+      summary: Информация о текущем пользователе
+      tags:
+      - me
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiUser'
+          description: ''
+  /api/my/courses/:
+    get:
+      operationId: my_courses_list
+      description: Для студента возвращает курсы по записи, для преподавателя — управляемые
+        курсы.
+      summary: Мои курсы
+      tags:
+      - my
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ApiMyCourse'
+          description: ''
   /api/quizzes/{id}/:
     get:
       operationId: quizzes_retrieve
-      description: Возвращает параметры теста, вопросы и варианты ответов без проверки
-        ответов пользователя.
       summary: Детальная информация о тесте
       parameters:
       - in: path
@@ -64,8 +255,8 @@ paths:
       tags:
       - quizzes
       security:
+      - tokenAuth: []
       - cookieAuth: []
-      - basicAuth: []
       - {}
       responses:
         '200':
@@ -73,6 +264,68 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiQuizDetail'
+          description: ''
+  /api/quizzes/{id}/attempts/:
+    get:
+      operationId: quizzes_attempts_retrieve
+      summary: Список попыток по тесту для преподавателя
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - quizzes
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiQuizAttemptsResponse'
+          description: ''
+  /api/quizzes/{id}/start/:
+    post:
+      operationId: quizzes_start_create
+      summary: Старт попытки по тесту
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - quizzes
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApiAttemptStartResponse'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ApiAttemptStartResponse'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ApiAttemptStartResponse'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAttemptStartResponse'
+          description: ''
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAttemptStartResponse'
           description: ''
   /api/schema/:
     get:
@@ -196,8 +449,8 @@ paths:
       tags:
       - schema
       security:
+      - tokenAuth: []
       - cookieAuth: []
-      - basicAuth: []
       - {}
       responses:
         '200':
@@ -228,8 +481,8 @@ paths:
       tags:
       - stats
       security:
+      - tokenAuth: []
       - cookieAuth: []
-      - basicAuth: []
       - {}
       responses:
         '200':
@@ -237,18 +490,47 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiStats'
-              examples:
-                ПримерОтвета:
-                  value:
-                    courses: 5
-                    quizzes: 10
-                    students: 12
-                    submitted_attempts: 66
-                    announcements: 10
-                  summary: Пример ответа
           description: ''
 components:
   schemas:
+    ApiAnalyticsTopicRow:
+      type: object
+      properties:
+        topic:
+          type: string
+        total_questions:
+          type: integer
+        correct_answers:
+          type: integer
+        awarded_points:
+          type: integer
+        total_points:
+          type: integer
+        accuracy_percent:
+          type: integer
+        points_percent:
+          type: integer
+        status_code:
+          type: string
+        status_label:
+          type: string
+        recommendation:
+          type: string
+        students_count:
+          type: integer
+        attempts_count:
+          type: integer
+      required:
+      - accuracy_percent
+      - awarded_points
+      - correct_answers
+      - points_percent
+      - recommendation
+      - status_code
+      - status_label
+      - topic
+      - total_points
+      - total_questions
     ApiAnnouncement:
       type: object
       properties:
@@ -273,6 +555,204 @@ components:
       - body
       - id
       - title
+    ApiAttemptAnswer:
+      type: object
+      properties:
+        question_id:
+          type: integer
+        question_text:
+          type: string
+        topic:
+          type: string
+        is_correct:
+          type: boolean
+        awarded_points:
+          type: integer
+        selected_choice_ids:
+          type: array
+          items:
+            type: integer
+        selected_choices:
+          type: array
+          items:
+            type: string
+        correct_choice_ids:
+          type: array
+          items:
+            type: integer
+        correct_choices:
+          type: array
+          items:
+            type: string
+      required:
+      - awarded_points
+      - correct_choice_ids
+      - correct_choices
+      - is_correct
+      - question_id
+      - question_text
+      - selected_choice_ids
+      - selected_choices
+      - topic
+    ApiAttemptDetail:
+      type: object
+      properties:
+        attempt:
+          $ref: '#/components/schemas/ApiAttemptSummary'
+        answers:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApiAttemptAnswer'
+        topic_insights:
+          type: array
+          items:
+            type: object
+            additionalProperties: {}
+        recommendations:
+          type: array
+          items:
+            type: string
+        review:
+          allOf:
+          - $ref: '#/components/schemas/ApiAttemptReview'
+          nullable: true
+        show_answer_key:
+          type: boolean
+      required:
+      - answers
+      - attempt
+      - recommendations
+      - review
+      - show_answer_key
+      - topic_insights
+    ApiAttemptReview:
+      type: object
+      properties:
+        feedback:
+          type: string
+          title: РљРѕРјРјРµРЅС‚Р°СЂРёР№ РїСЂРµРїРѕРґР°РІР°С‚РµР»СЏ
+        reviewed_at:
+          type: string
+          format: date-time
+          title: Р”Р°С‚Р° РїСЂРѕРІРµСЂРєРё
+        teacher_name:
+          type: string
+          readOnly: true
+      required:
+      - feedback
+      - teacher_name
+    ApiAttemptStartResponse:
+      type: object
+      properties:
+        attempt:
+          $ref: '#/components/schemas/ApiAttemptSummary'
+        reused_existing:
+          type: boolean
+      required:
+      - attempt
+      - reused_existing
+    ApiAttemptSubmitRequest:
+      type: object
+      properties:
+        answers:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: integer
+              minimum: 1
+      required:
+      - answers
+    ApiAttemptSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/StatusEnum'
+          title: Статус
+        started_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Начало
+        submitted_at:
+          type: string
+          format: date-time
+          nullable: true
+          title: Завершение
+        duration_seconds:
+          type: integer
+          title: Длительность, сек.
+        score_points:
+          type: integer
+          title: Набрано баллов
+        score_percent:
+          type: integer
+          title: Результат, %
+        correct_answers_count:
+          type: integer
+          title: Правильных ответов
+        total_questions:
+          type: integer
+          readOnly: true
+        total_points:
+          type: integer
+          readOnly: true
+        is_passed:
+          type: boolean
+          readOnly: true
+        quiz:
+          allOf:
+          - $ref: '#/components/schemas/ApiQuizReference'
+          readOnly: true
+        course:
+          allOf:
+          - $ref: '#/components/schemas/ApiCourseReference'
+          readOnly: true
+        has_review:
+          type: boolean
+          readOnly: true
+      required:
+      - course
+      - has_review
+      - id
+      - is_passed
+      - quiz
+      - started_at
+      - total_points
+      - total_questions
+    ApiAttentionStudent:
+      type: object
+      properties:
+        student:
+          $ref: '#/components/schemas/ApiUser'
+        completed_quizzes:
+          type: integer
+        pending_quizzes:
+          type: integer
+        average_score:
+          type: integer
+        weakest_topic:
+          type: string
+          nullable: true
+        status_code:
+          type: string
+        status_label:
+          type: string
+        recommendation:
+          type: string
+      required:
+      - average_score
+      - completed_quizzes
+      - pending_quizzes
+      - recommendation
+      - status_code
+      - status_label
+      - student
+      - weakest_topic
     ApiChoice:
       type: object
       properties:
@@ -289,6 +769,37 @@ components:
       required:
       - id
       - text
+    ApiCourseAnalytics:
+      type: object
+      properties:
+        course:
+          $ref: '#/components/schemas/ApiCourseReference'
+        overall_accuracy:
+          type: integer
+        weak_topics_count:
+          type: integer
+        total_answers:
+          type: integer
+        topic_rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApiAnalyticsTopicRow'
+        attention_students:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApiAttentionStudent'
+        leaderboard:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApiLeaderboardRow'
+      required:
+      - attention_students
+      - course
+      - leaderboard
+      - overall_accuracy
+      - topic_rows
+      - total_answers
+      - weak_topics_count
     ApiCourseDetail:
       type: object
       properties:
@@ -413,6 +924,101 @@ components:
       required:
       - id
       - title
+    ApiEnrollmentResponse:
+      type: object
+      properties:
+        course:
+          $ref: '#/components/schemas/ApiCourseReference'
+        enrolled:
+          type: boolean
+        status:
+          type: string
+      required:
+      - course
+      - enrolled
+      - status
+    ApiLeaderboardRow:
+      type: object
+      properties:
+        rank:
+          type: integer
+        student:
+          $ref: '#/components/schemas/ApiUser'
+        average_score:
+          type: integer
+        best_score:
+          type: integer
+        completed_quizzes:
+          type: integer
+        pending_quizzes:
+          type: integer
+        progress_percent:
+          type: integer
+        status_code:
+          type: string
+        status_label:
+          type: string
+      required:
+      - average_score
+      - best_score
+      - completed_quizzes
+      - pending_quizzes
+      - progress_percent
+      - rank
+      - status_code
+      - status_label
+      - student
+    ApiMyCourse:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+          title: Название
+          maxLength: 200
+        subject_code:
+          type: string
+          title: Код дисциплины
+          maxLength: 30
+        summary:
+          type: string
+          title: Краткое описание
+          maxLength: 255
+        semester:
+          allOf:
+          - $ref: '#/components/schemas/SemesterEnum'
+          title: Семестр
+        academic_year:
+          type: string
+          title: Учебный год
+          maxLength: 20
+        owner_name:
+          type: string
+          readOnly: true
+        published_quizzes_count:
+          type: integer
+          readOnly: true
+        total_students:
+          type: integer
+          readOnly: true
+        my_role:
+          type: string
+          readOnly: true
+        enrollment_status:
+          type: string
+          nullable: true
+          readOnly: true
+      required:
+      - enrollment_status
+      - id
+      - my_role
+      - owner_name
+      - published_quizzes_count
+      - summary
+      - title
+      - total_students
     ApiQuestion:
       type: object
       properties:
@@ -449,6 +1055,52 @@ components:
       - choices
       - id
       - text
+    ApiQuizAttemptList:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        student_name:
+          type: string
+          readOnly: true
+        academic_group:
+          type: string
+          readOnly: true
+        submitted_at:
+          type: string
+          format: date-time
+          nullable: true
+          title: Завершение
+        duration_seconds:
+          type: integer
+          title: Длительность, сек.
+        score_points:
+          type: integer
+          title: Набрано баллов
+        score_percent:
+          type: integer
+          title: Результат, %
+        has_review:
+          type: boolean
+          readOnly: true
+      required:
+      - academic_group
+      - has_review
+      - id
+      - student_name
+    ApiQuizAttemptsResponse:
+      type: object
+      properties:
+        quiz:
+          $ref: '#/components/schemas/ApiQuizReference'
+        attempts:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApiQuizAttemptList'
+      required:
+      - attempts
+      - quiz
     ApiQuizDetail:
       type: object
       properties:
@@ -513,6 +1165,19 @@ components:
       - questions
       - title
       - total_points
+    ApiQuizReference:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+          title: Название теста
+          maxLength: 200
+      required:
+      - id
+      - title
     ApiQuizSummary:
       type: object
       properties:
@@ -568,6 +1233,55 @@ components:
       - quizzes
       - students
       - submitted_attempts
+    ApiTokenRequest:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+      required:
+      - password
+      - username
+    ApiTokenResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: '#/components/schemas/ApiUser'
+      required:
+      - token
+      - user
+    ApiUser:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        username:
+          type: string
+          readOnly: true
+        full_name:
+          type: string
+          readOnly: true
+        role:
+          type: string
+          readOnly: true
+        email:
+          type: string
+          format: email
+          readOnly: true
+        academic_group:
+          type: string
+          readOnly: true
+      required:
+      - academic_group
+      - email
+      - full_name
+      - id
+      - role
+      - username
     DifficultyEnum:
       enum:
       - basic
@@ -594,11 +1308,21 @@ components:
       description: |-
         * `autumn` - Осенний семестр
         * `spring` - Весенний семестр
+    StatusEnum:
+      enum:
+      - in_progress
+      - submitted
+      type: string
+      description: |-
+        * `in_progress` - В процессе
+        * `submitted` - Завершена
   securitySchemes:
-    basicAuth:
-      type: http
-      scheme: basic
     cookieAuth:
       type: apiKey
       in: cookie
       name: sessionid
+    tokenAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: Token-based authentication with required prefix "Token"

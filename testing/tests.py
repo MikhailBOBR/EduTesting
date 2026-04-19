@@ -4,6 +4,7 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
+from rest_framework.authtoken.models import Token
 
 from accounts.models import User, UserRole
 
@@ -901,6 +902,31 @@ class TeacherManagementTests(TestingBaseMixin, TestCase):
 
 
 class ApiTests(TestingBaseMixin, TestCase):
+    def auth_headers(self, user):
+        token, _ = Token.objects.get_or_create(user=user)
+        return {'HTTP_AUTHORIZATION': f'Token {token.key}'}
+
+    def test_api_token_auth_returns_token_and_user(self):
+        response = self.client.post(
+            reverse('testing_api:token_auth'),
+            {'username': self.student.username, 'password': 'StudentPass123!'},
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn('token', data)
+        self.assertEqual(data['user']['username'], self.student.username)
+        self.assertEqual(data['user']['role'], UserRole.STUDENT)
+
+    def test_api_me_requires_authentication(self):
+        unauthorized = self.client.get(reverse('testing_api:me'))
+        authorized = self.client.get(reverse('testing_api:me'), **self.auth_headers(self.student))
+
+        self.assertEqual(unauthorized.status_code, 401)
+        self.assertEqual(authorized.status_code, 200)
+        self.assertEqual(authorized.json()['username'], self.student.username)
+
     def test_api_stats_returns_expected_keys(self):
         self.create_submitted_attempt(student=self.student)
 
@@ -934,6 +960,105 @@ class ApiTests(TestingBaseMixin, TestCase):
         self.assertEqual(len(data['quizzes']), 2)
         self.assertEqual(len(data['announcements']), 1)
         self.assertEqual(data['announcements'][0]['title'], self.announcement.title)
+
+    def test_api_my_courses_returns_student_enrollments(self):
+        response = self.client.get(reverse('testing_api:my_course_list'), **self.auth_headers(self.student))
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]['id'], self.course.pk)
+        self.assertEqual(data[0]['my_role'], UserRole.STUDENT)
+
+    def test_api_student_can_enroll_start_and_submit_attempt(self):
+        Enrollment.objects.filter(course=self.course, student=self.student).delete()
+
+        enroll_response = self.client.post(
+            reverse('testing_api:course_enroll', args=[self.course.pk]),
+            {},
+            content_type='application/json',
+            **self.auth_headers(self.student),
+        )
+        self.assertEqual(enroll_response.status_code, 201)
+        self.assertTrue(Enrollment.objects.filter(course=self.course, student=self.student).exists())
+
+        start_response = self.client.post(
+            reverse('testing_api:quiz_start', args=[self.quiz.pk]),
+            {},
+            content_type='application/json',
+            **self.auth_headers(self.student),
+        )
+        self.assertEqual(start_response.status_code, 201)
+        attempt_id = start_response.json()['attempt']['id']
+
+        submit_response = self.client.post(
+            reverse('testing_api:attempt_submit', args=[attempt_id]),
+            {
+                'answers': {
+                    str(self.question_single.id): [self.single_correct.id],
+                    str(self.question_multi.id): [self.multi_correct_1.id, self.multi_correct_2.id],
+                }
+            },
+            content_type='application/json',
+            **self.auth_headers(self.student),
+        )
+
+        self.assertEqual(submit_response.status_code, 200)
+        payload = submit_response.json()
+        self.assertEqual(payload['attempt']['score_percent'], 100)
+        self.assertEqual(len(payload['answers']), 2)
+        self.assertTrue(payload['show_answer_key'])
+
+    def test_api_attempt_detail_hides_answer_key_for_student_when_disabled(self):
+        attempt = self.create_submitted_attempt(student=self.student, quiz=self.hidden_quiz)
+
+        response = self.client.get(
+            reverse('testing_api:attempt_detail', args=[attempt.pk]),
+            **self.auth_headers(self.student),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertFalse(payload['show_answer_key'])
+        self.assertEqual(payload['answers'][0]['correct_choice_ids'], [])
+
+    def test_api_teacher_can_view_course_analytics(self):
+        Enrollment.objects.create(course=self.course, student=self.other_student)
+        self.create_submitted_attempt(student=self.student)
+        self.create_submitted_attempt(student=self.other_student, answers_mapping=self.partial_answers())
+
+        response = self.client.get(
+            reverse('testing_api:course_analytics', args=[self.course.pk]),
+            **self.auth_headers(self.teacher),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload['course']['id'], self.course.pk)
+        self.assertTrue(payload['topic_rows'])
+        self.assertTrue(payload['attention_students'])
+        self.assertTrue(payload['leaderboard'])
+
+    def test_api_teacher_can_view_quiz_attempts(self):
+        self.create_submitted_attempt(student=self.student)
+
+        response = self.client.get(
+            reverse('testing_api:quiz_attempts', args=[self.quiz.pk]),
+            **self.auth_headers(self.teacher),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload['quiz']['id'], self.quiz.pk)
+        self.assertEqual(len(payload['attempts']), 1)
+
+    def test_api_student_cannot_open_teacher_analytics(self):
+        response = self.client.get(
+            reverse('testing_api:course_analytics', args=[self.course.pk]),
+            **self.auth_headers(self.student),
+        )
+
+        self.assertEqual(response.status_code, 403)
 
     def test_api_quiz_detail_returns_questions_without_correctness_flags(self):
         response = self.client.get(reverse('testing_api:quiz_detail', args=[self.quiz.pk]))

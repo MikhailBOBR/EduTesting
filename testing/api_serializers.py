@@ -1,7 +1,7 @@
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
-from .models import Announcement, Choice, Course, Question, Quiz
+from .models import Announcement, Attempt, AttemptReview, Choice, Course, Question, Quiz
 
 
 class ApiAnnouncementSerializer(serializers.ModelSerializer):
@@ -18,10 +18,35 @@ class ApiStatsSerializer(serializers.Serializer):
     announcements = serializers.IntegerField()
 
 
+class ApiUserSerializer(serializers.Serializer):
+    id = serializers.IntegerField(read_only=True)
+    username = serializers.CharField(read_only=True)
+    full_name = serializers.CharField(read_only=True)
+    role = serializers.CharField(read_only=True)
+    email = serializers.EmailField(read_only=True)
+    academic_group = serializers.CharField(read_only=True)
+
+
+class ApiTokenRequestSerializer(serializers.Serializer):
+    username = serializers.CharField()
+    password = serializers.CharField()
+
+
+class ApiTokenResponseSerializer(serializers.Serializer):
+    token = serializers.CharField()
+    user = ApiUserSerializer()
+
+
 class ApiCourseReferenceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Course
         fields = ('id', 'title', 'subject_code')
+
+
+class ApiQuizReferenceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Quiz
+        fields = ('id', 'title')
 
 
 class ApiQuizSummarySerializer(serializers.ModelSerializer):
@@ -63,6 +88,46 @@ class ApiCourseListSerializer(serializers.ModelSerializer):
     @extend_schema_field(serializers.CharField())
     def get_owner_name(self, obj):
         return obj.owner.get_full_name() or obj.owner.username
+
+
+class ApiMyCourseSerializer(serializers.ModelSerializer):
+    owner_name = serializers.SerializerMethodField()
+    total_students = serializers.IntegerField(read_only=True)
+    published_quizzes_count = serializers.IntegerField(read_only=True)
+    my_role = serializers.SerializerMethodField()
+    enrollment_status = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Course
+        fields = (
+            'id',
+            'title',
+            'subject_code',
+            'summary',
+            'semester',
+            'academic_year',
+            'owner_name',
+            'published_quizzes_count',
+            'total_students',
+            'my_role',
+            'enrollment_status',
+        )
+
+    @extend_schema_field(serializers.CharField())
+    def get_owner_name(self, obj):
+        return obj.owner.get_full_name() or obj.owner.username
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_enrollment_status(self, obj):
+        user = self.context['request'].user
+        if not user.is_student:
+            return None
+        enrollment = obj.enrollments.filter(student=user).first()
+        return enrollment.status if enrollment else None
+
+    @extend_schema_field(serializers.CharField())
+    def get_my_role(self, obj):
+        return self.context['request'].user.role
 
 
 class ApiCourseDetailSerializer(serializers.ModelSerializer):
@@ -161,3 +226,188 @@ class ApiQuizDetailSerializer(serializers.ModelSerializer):
     @extend_schema_field(ApiCourseReferenceSerializer)
     def get_course(self, obj):
         return ApiCourseReferenceSerializer(obj.course).data
+
+
+class ApiEnrollmentResponseSerializer(serializers.Serializer):
+    course = ApiCourseReferenceSerializer()
+    enrolled = serializers.BooleanField()
+    status = serializers.CharField()
+
+
+class ApiAttemptReviewSerializer(serializers.ModelSerializer):
+    teacher_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = AttemptReview
+        fields = ('feedback', 'reviewed_at', 'teacher_name')
+
+    @extend_schema_field(serializers.CharField())
+    def get_teacher_name(self, obj):
+        return obj.teacher.get_full_name() or obj.teacher.username
+
+
+class ApiAttemptSummarySerializer(serializers.ModelSerializer):
+    quiz = ApiQuizReferenceSerializer(read_only=True)
+    course = serializers.SerializerMethodField()
+    is_passed = serializers.BooleanField(read_only=True)
+    total_questions = serializers.IntegerField(read_only=True)
+    total_points = serializers.IntegerField(read_only=True)
+    has_review = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Attempt
+        fields = (
+            'id',
+            'status',
+            'started_at',
+            'submitted_at',
+            'duration_seconds',
+            'score_points',
+            'score_percent',
+            'correct_answers_count',
+            'total_questions',
+            'total_points',
+            'is_passed',
+            'quiz',
+            'course',
+            'has_review',
+        )
+
+    @extend_schema_field(ApiCourseReferenceSerializer)
+    def get_course(self, obj):
+        return ApiCourseReferenceSerializer(obj.quiz.course).data
+
+    @extend_schema_field(serializers.BooleanField())
+    def get_has_review(self, obj):
+        return hasattr(obj, 'review')
+
+
+class ApiAttemptAnswerSerializer(serializers.Serializer):
+    question_id = serializers.IntegerField()
+    question_text = serializers.CharField()
+    topic = serializers.CharField()
+    is_correct = serializers.BooleanField()
+    awarded_points = serializers.IntegerField()
+    selected_choice_ids = serializers.ListField(child=serializers.IntegerField(), allow_empty=True)
+    selected_choices = serializers.ListField(child=serializers.CharField(), allow_empty=True)
+    correct_choice_ids = serializers.ListField(child=serializers.IntegerField(), allow_empty=True)
+    correct_choices = serializers.ListField(child=serializers.CharField(), allow_empty=True)
+
+
+class ApiTopicInsightSerializer(serializers.Serializer):
+    topic = serializers.CharField()
+    accuracy_percent = serializers.IntegerField()
+    awarded_points = serializers.IntegerField()
+    total_points = serializers.IntegerField()
+    status_code = serializers.CharField()
+    status_label = serializers.CharField()
+    recommendation = serializers.CharField()
+
+
+class ApiAttemptDetailSerializer(serializers.Serializer):
+    attempt = ApiAttemptSummarySerializer()
+    answers = ApiAttemptAnswerSerializer(many=True)
+    topic_insights = serializers.ListField(child=serializers.DictField(), allow_empty=True)
+    recommendations = serializers.ListField(child=serializers.CharField(), allow_empty=True)
+    review = ApiAttemptReviewSerializer(allow_null=True)
+    show_answer_key = serializers.BooleanField()
+
+
+class ApiAttemptStartResponseSerializer(serializers.Serializer):
+    attempt = ApiAttemptSummarySerializer()
+    reused_existing = serializers.BooleanField()
+
+
+class ApiAttemptSubmitRequestSerializer(serializers.Serializer):
+    answers = serializers.DictField(
+        child=serializers.ListField(child=serializers.IntegerField(min_value=1), allow_empty=True)
+    )
+
+    def validate_answers(self, value):
+        normalized = {}
+        for question_id, choice_ids in value.items():
+            try:
+                normalized[int(question_id)] = {int(choice_id) for choice_id in choice_ids}
+            except (TypeError, ValueError):
+                raise serializers.ValidationError('Ключи словаря answers должны быть числовыми id вопросов.')
+        return normalized
+
+
+class ApiQuizAttemptListSerializer(serializers.ModelSerializer):
+    student_name = serializers.SerializerMethodField()
+    academic_group = serializers.CharField(source='student.academic_group', read_only=True)
+    has_review = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Attempt
+        fields = (
+            'id',
+            'student_name',
+            'academic_group',
+            'submitted_at',
+            'duration_seconds',
+            'score_points',
+            'score_percent',
+            'has_review',
+        )
+
+    @extend_schema_field(serializers.CharField())
+    def get_student_name(self, obj):
+        return obj.student.get_full_name() or obj.student.username
+
+    @extend_schema_field(serializers.BooleanField())
+    def get_has_review(self, obj):
+        return hasattr(obj, 'review')
+
+
+class ApiQuizAttemptsResponseSerializer(serializers.Serializer):
+    quiz = ApiQuizReferenceSerializer()
+    attempts = ApiQuizAttemptListSerializer(many=True)
+
+
+class ApiAnalyticsTopicRowSerializer(serializers.Serializer):
+    topic = serializers.CharField()
+    total_questions = serializers.IntegerField()
+    correct_answers = serializers.IntegerField()
+    awarded_points = serializers.IntegerField()
+    total_points = serializers.IntegerField()
+    accuracy_percent = serializers.IntegerField()
+    points_percent = serializers.IntegerField()
+    status_code = serializers.CharField()
+    status_label = serializers.CharField()
+    recommendation = serializers.CharField()
+    students_count = serializers.IntegerField(required=False)
+    attempts_count = serializers.IntegerField(required=False)
+
+
+class ApiAttentionStudentSerializer(serializers.Serializer):
+    student = ApiUserSerializer()
+    completed_quizzes = serializers.IntegerField()
+    pending_quizzes = serializers.IntegerField()
+    average_score = serializers.IntegerField()
+    weakest_topic = serializers.CharField(allow_null=True)
+    status_code = serializers.CharField()
+    status_label = serializers.CharField()
+    recommendation = serializers.CharField()
+
+
+class ApiLeaderboardRowSerializer(serializers.Serializer):
+    rank = serializers.IntegerField()
+    student = ApiUserSerializer()
+    average_score = serializers.IntegerField()
+    best_score = serializers.IntegerField()
+    completed_quizzes = serializers.IntegerField()
+    pending_quizzes = serializers.IntegerField()
+    progress_percent = serializers.IntegerField()
+    status_code = serializers.CharField()
+    status_label = serializers.CharField()
+
+
+class ApiCourseAnalyticsSerializer(serializers.Serializer):
+    course = ApiCourseReferenceSerializer()
+    overall_accuracy = serializers.IntegerField()
+    weak_topics_count = serializers.IntegerField()
+    total_answers = serializers.IntegerField()
+    topic_rows = ApiAnalyticsTopicRowSerializer(many=True)
+    attention_students = ApiAttentionStudentSerializer(many=True)
+    leaderboard = ApiLeaderboardRowSerializer(many=True)
