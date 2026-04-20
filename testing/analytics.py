@@ -1,4 +1,4 @@
-from django.db.models import Avg
+from django.db.models import Avg, Q
 
 from .models import Answer, Attempt, AttemptStatus, Enrollment
 
@@ -102,6 +102,75 @@ def build_attempt_topic_insights(attempt):
         'weakest_topic': weakest_topic,
         'strongest_topic': strongest_topic,
         'recommendations': recommendations,
+    }
+
+
+def build_attempt_comparison(attempt):
+    previous_attempt = (
+        Attempt.objects.filter(
+            quiz=attempt.quiz,
+            student=attempt.student,
+            status=AttemptStatus.SUBMITTED,
+        )
+        .exclude(pk=attempt.pk)
+        .filter(
+            Q(submitted_at__lt=attempt.submitted_at)
+            | Q(submitted_at=attempt.submitted_at, pk__lt=attempt.pk)
+        )
+        .order_by('-submitted_at', '-pk')
+        .first()
+    )
+    if previous_attempt is None:
+        return None
+
+    current_rows = build_attempt_topic_insights(attempt)['topic_rows']
+    previous_rows = build_attempt_topic_insights(previous_attempt)['topic_rows']
+    current_by_topic = {row['topic']: row for row in current_rows}
+    previous_by_topic = {row['topic']: row for row in previous_rows}
+    topic_deltas = []
+
+    for topic in sorted(set(previous_by_topic) | set(current_by_topic)):
+        previous_row = previous_by_topic.get(topic, {})
+        current_row = current_by_topic.get(topic, {})
+        previous_accuracy = previous_row.get('accuracy_percent', 0)
+        current_accuracy = current_row.get('accuracy_percent', 0)
+        delta_accuracy = current_accuracy - previous_accuracy
+        if delta_accuracy > 0:
+            trend = 'up'
+        elif delta_accuracy < 0:
+            trend = 'down'
+        else:
+            trend = 'same'
+
+        topic_deltas.append(
+            {
+                'topic': topic,
+                'previous_accuracy': previous_accuracy,
+                'current_accuracy': current_accuracy,
+                'delta_accuracy': delta_accuracy,
+                'trend': trend,
+            }
+        )
+
+    improved_topics = sorted(
+        [row for row in topic_deltas if row['delta_accuracy'] > 0],
+        key=lambda row: (-row['delta_accuracy'], row['topic']),
+    )
+    declined_topics = sorted(
+        [row for row in topic_deltas if row['delta_accuracy'] < 0],
+        key=lambda row: (row['delta_accuracy'], row['topic']),
+    )
+
+    return {
+        'previous_attempt': previous_attempt,
+        'previous_score_percent': previous_attempt.score_percent,
+        'score_delta': attempt.score_percent - previous_attempt.score_percent,
+        'points_delta': attempt.score_points - previous_attempt.score_points,
+        'correct_answers_delta': attempt.correct_answers_count - previous_attempt.correct_answers_count,
+        'duration_delta_minutes': round((attempt.duration_seconds - previous_attempt.duration_seconds) / 60, 1),
+        'improved_topics': improved_topics[:3],
+        'declined_topics': declined_topics[:3],
+        'unchanged_topics_count': sum(1 for row in topic_deltas if row['trend'] == 'same'),
     }
 
 

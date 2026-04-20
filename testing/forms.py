@@ -196,6 +196,7 @@ class CourseFilterForm(forms.Form):
 
 class AttemptForm(forms.Form):
     def __init__(self, *args, quiz, **kwargs):
+        initial_answers = kwargs.pop('initial_answers', None) or {}
         self.quiz = quiz
         super().__init__(*args, **kwargs)
 
@@ -222,6 +223,12 @@ class AttemptForm(forms.Form):
             field.question = question
             field.help_text = f'{question.get_difficulty_display()} • {question.points} балл(ов)'
             self.fields[field_name] = field
+            initial_value = initial_answers.get(question.id, initial_answers.get(str(question.id)))
+            if initial_value:
+                if question.question_type == QuestionType.SINGLE:
+                    self.initial[field_name] = str(next(iter(initial_value)))
+                else:
+                    self.initial[field_name] = [str(choice_id) for choice_id in sorted(initial_value)]
 
     @staticmethod
     def get_field_name(question_id):

@@ -371,6 +371,31 @@ class Attempt(TimeStampedModel):
         return round(self.duration_seconds / 60, 1) if self.duration_seconds else 0
 
 
+class AttemptDraft(TimeStampedModel):
+    attempt = models.OneToOneField(
+        Attempt,
+        on_delete=models.CASCADE,
+        related_name='draft',
+        verbose_name='Р§РµСЂРЅРѕРІРёРє РїРѕРїС‹С‚РєРё',
+    )
+    answers_payload = models.JSONField('РћС‚РІРµС‚С‹', default=dict, blank=True)
+    last_question_id = models.PositiveIntegerField('РџРѕСЃР»РµРґРЅРёР№ РёР·РјРµРЅРµРЅРЅС‹Р№ РІРѕРїСЂРѕСЃ', null=True, blank=True)
+    autosave_count = models.PositiveIntegerField('Р§РёСЃР»Рѕ Р°РІС‚РѕСЃРѕС…СЂР°РЅРµРЅРёР№', default=0)
+    saved_at = models.DateTimeField('РЎРѕС…СЂР°РЅРµРЅРѕ', default=timezone.now)
+
+    class Meta:
+        ordering = ('-saved_at',)
+        verbose_name = 'Р§РµСЂРЅРѕРІРёРє РїРѕРїС‹С‚РєРё'
+        verbose_name_plural = 'Р§РµСЂРЅРѕРІРёРєРё РїРѕРїС‹С‚РѕРє'
+
+    def __str__(self):
+        return f'Р§РµСЂРЅРѕРІРёРє РїРѕРїС‹С‚РєРё #{self.attempt_id}'
+
+    @property
+    def answered_questions_count(self):
+        return sum(1 for choice_ids in (self.answers_payload or {}).values() if choice_ids)
+
+
 class Answer(TimeStampedModel):
     attempt = models.ForeignKey(
         Attempt,
@@ -424,6 +449,74 @@ class Announcement(TimeStampedModel):
 
     def __str__(self):
         return f'{self.course.title}: {self.title}'
+
+
+class NotificationCategory(models.TextChoices):
+    ANNOUNCEMENT = 'announcement', 'РћР±СЉСЏРІР»РµРЅРёРµ'
+    QUIZ = 'quiz', 'РўРµСЃС‚'
+    ATTEMPT = 'attempt', 'РџРѕРїС‹С‚РєР°'
+    REVIEW = 'review', 'РџСЂРѕРІРµСЂРєР°'
+
+
+class UserNotification(TimeStampedModel):
+    recipient = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='notifications',
+        verbose_name='РџРѕР»СѓС‡Р°С‚РµР»СЊ',
+    )
+    category = models.CharField(
+        'РљР°С‚РµРіРѕСЂРёСЏ',
+        max_length=20,
+        choices=NotificationCategory.choices,
+    )
+    title = models.CharField('Р—Р°РіРѕР»РѕРІРѕРє', max_length=200)
+    message = models.TextField('РўРµРєСЃС‚', blank=True)
+    action_url = models.CharField('РЎСЃС‹Р»РєР°', max_length=255, blank=True)
+    course = models.ForeignKey(
+        Course,
+        on_delete=models.CASCADE,
+        related_name='notifications',
+        verbose_name='РљСѓСЂСЃ',
+        null=True,
+        blank=True,
+    )
+    quiz = models.ForeignKey(
+        Quiz,
+        on_delete=models.CASCADE,
+        related_name='notifications',
+        verbose_name='РўРµСЃС‚',
+        null=True,
+        blank=True,
+    )
+    attempt = models.ForeignKey(
+        Attempt,
+        on_delete=models.CASCADE,
+        related_name='notifications',
+        verbose_name='РџРѕРїС‹С‚РєР°',
+        null=True,
+        blank=True,
+    )
+    is_read = models.BooleanField('РџСЂРѕС‡РёС‚Р°РЅРѕ', default=False)
+    read_at = models.DateTimeField('РџСЂРѕС‡РёС‚Р°РЅРѕ РІ', null=True, blank=True)
+
+    class Meta:
+        ordering = ('is_read', '-created_at')
+        verbose_name = 'РЈРІРµРґРѕРјР»РµРЅРёРµ'
+        verbose_name_plural = 'РЈРІРµРґРѕРјР»РµРЅРёСЏ'
+        indexes = [
+            models.Index(fields=('recipient', 'is_read', 'created_at')),
+        ]
+
+    def __str__(self):
+        return f'{self.get_category_display()}: {self.title}'
+
+    def mark_as_read(self):
+        if self.is_read:
+            return
+        self.is_read = True
+        self.read_at = timezone.now()
+        self.save(update_fields=('is_read', 'read_at'))
 
 
 class AttemptReview(TimeStampedModel):

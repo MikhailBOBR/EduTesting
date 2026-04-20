@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Announcement, Answer, Attempt, Choice, Course, Enrollment, Question, Quiz
+from .models import Announcement, Answer, Attempt, AttemptDraft, Choice, Course, Enrollment, Question, Quiz, UserNotification
 
 
 class ChoiceInline(admin.TabularInline):
@@ -68,3 +68,16 @@ class AttemptAdmin(admin.ModelAdmin):
 class AnswerAdmin(admin.ModelAdmin):
     list_display = ('attempt', 'question', 'is_correct', 'awarded_points')
     list_filter = ('is_correct', 'question__quiz')
+
+
+@admin.register(AttemptDraft)
+class AttemptDraftAdmin(admin.ModelAdmin):
+    list_display = ('attempt', 'saved_at', 'autosave_count', 'answered_questions_count')
+    search_fields = ('attempt__student__username', 'attempt__quiz__title')
+
+
+@admin.register(UserNotification)
+class UserNotificationAdmin(admin.ModelAdmin):
+    list_display = ('recipient', 'category', 'title', 'is_read', 'created_at')
+    list_filter = ('category', 'is_read')
+    search_fields = ('recipient__username', 'title', 'message')

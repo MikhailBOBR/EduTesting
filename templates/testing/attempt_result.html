@@ -55,6 +55,69 @@
     </article>
 </section>
 
+{% if attempt_comparison %}
+    <section class="grid-2">
+        <article class="panel">
+            <div class="panel__header">
+                <div class="section-kicker">Р”РёРЅР°РјРёРєР°</div>
+                <h2>РЎСЂР°РІРЅРµРЅРёРµ СЃ РїСЂРµРґС‹РґСѓС‰РµР№ РїРѕРїС‹С‚РєРѕР№</h2>
+            </div>
+            <div class="table-wrap">
+                <table class="data-table">
+                    <tbody>
+                        <tr>
+                            <th>РџСЂРµРґС‹РґСѓС‰Р°СЏ РїРѕРїС‹С‚РєР°</th>
+                            <td>{{ attempt_comparison.previous_attempt.submitted_at|date:"d.m.Y H:i" }}</td>
+                        </tr>
+                        <tr>
+                            <th>РР·РјРµРЅРµРЅРёРµ СЂРµР·СѓР»СЊС‚Р°С‚Р°</th>
+                            <td>{% if attempt_comparison.score_delta > 0 %}+{% endif %}{{ attempt_comparison.score_delta }} п.п.</td>
+                        </tr>
+                        <tr>
+                            <th>РР·РјРµРЅРµРЅРёРµ Р±Р°Р»Р»РѕРІ</th>
+                            <td>{% if attempt_comparison.points_delta > 0 %}+{% endif %}{{ attempt_comparison.points_delta }}</td>
+                        </tr>
+                        <tr>
+                            <th>Р’РµСЂРЅС‹С… РѕС‚РІРµС‚РѕРІ</th>
+                            <td>{% if attempt_comparison.correct_answers_delta > 0 %}+{% endif %}{{ attempt_comparison.correct_answers_delta }}</td>
+                        </tr>
+                        <tr>
+                            <th>Р’СЂРµРјСЏ РІС‹РїРѕР»РЅРµРЅРёСЏ</th>
+                            <td>{% if attempt_comparison.duration_delta_minutes > 0 %}+{% endif %}{{ attempt_comparison.duration_delta_minutes }} РјРёРЅ.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </article>
+
+        <article class="panel">
+            <div class="panel__header">
+                <div class="section-kicker">РўРµРјС‹</div>
+                <h2>Р§С‚Рѕ РёР·РјРµРЅРёР»РѕСЃСЊ</h2>
+            </div>
+            <div class="card-list">
+                {% for row in attempt_comparison.improved_topics %}
+                    <article class="card">
+                        <h3>РџСЂРѕРіСЂРµСЃСЃ: {{ row.topic }}</h3>
+                        <p class="muted">{{ row.previous_accuracy }}% → {{ row.current_accuracy }}% ({% if row.delta_accuracy > 0 %}+{% endif %}{{ row.delta_accuracy }} п.п.)</p>
+                    </article>
+                {% endfor %}
+                {% for row in attempt_comparison.declined_topics %}
+                    <article class="card">
+                        <h3>РўСЂРµР±СѓРµС‚ РІРЅРёРјР°РЅРёСЏ: {{ row.topic }}</h3>
+                        <p class="muted">{{ row.previous_accuracy }}% → {{ row.current_accuracy }}% ({{ row.delta_accuracy }} п.п.)</p>
+                    </article>
+                {% endfor %}
+                {% if not attempt_comparison.improved_topics and not attempt_comparison.declined_topics %}
+                    <article class="card">
+                        <p>РџРѕ С‚РµРјР°Рј РїРѕРєР°Р·Р°С‚РµР»Рё РѕСЃС‚Р°Р»РёСЃСЊ РЅР° С‚РѕРј Р¶Рµ СѓСЂРѕРІРЅРµ.</p>
+                    </article>
+                {% endif %}
+            </div>
+        </article>
+    </section>
+{% endif %}
+
 {% if attempt_review %}
     <section class="panel">
         <div class="panel__header">

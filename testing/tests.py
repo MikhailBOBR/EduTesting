@@ -1,3 +1,4 @@
+import json
 from datetime import timedelta
 
 from django.core.exceptions import ValidationError
@@ -9,6 +10,7 @@ from rest_framework.authtoken.models import Token
 from accounts.models import User, UserRole
 
 from .analytics import (
+    build_attempt_comparison,
     build_attempt_topic_insights,
     build_course_attention_students,
     build_course_leaderboard,
@@ -19,6 +21,7 @@ from .forms import AttemptForm, JoinCourseForm, QuizForm
 from .models import (
     Announcement,
     Attempt,
+    AttemptDraft,
     AttemptReview,
     AttemptStatus,
     Choice,
@@ -28,8 +31,9 @@ from .models import (
     QuestionType,
     Quiz,
     SemesterChoices,
+    UserNotification,
 )
-from .services import submit_attempt
+from .services import get_attempt_draft_mapping, save_attempt_draft, submit_attempt
 
 
 class TestingBaseMixin:
@@ -389,6 +393,43 @@ class ServiceTests(TestingBaseMixin, TestCase):
         self.assertEqual(attempt.score_percent, 100)
         self.assertEqual(attempt.correct_answers_count, 2)
 
+    def test_save_attempt_draft_normalizes_answers_and_restores_mapping(self):
+        attempt = Attempt.objects.create(quiz=self.quiz, student=self.student)
+
+        draft = save_attempt_draft(
+            attempt,
+            {
+                str(self.question_single.id): [self.single_correct.id],
+                str(self.question_multi.id): [self.multi_correct_1.id, 999999],
+            },
+            last_question_id=str(self.question_multi.id),
+        )
+
+        self.assertEqual(draft.answered_questions_count, 2)
+        self.assertEqual(
+            get_attempt_draft_mapping(attempt),
+            {
+                self.question_single.id: {self.single_correct.id},
+                self.question_multi.id: {self.multi_correct_1.id},
+            },
+        )
+        self.assertEqual(draft.last_question_id, self.question_multi.id)
+
+    def test_submit_attempt_clears_draft_after_submission(self):
+        attempt = Attempt.objects.create(quiz=self.quiz, student=self.student)
+        save_attempt_draft(attempt, self.partial_answers())
+
+        submit_attempt(attempt, self.correct_answers())
+
+        self.assertFalse(AttemptDraft.objects.filter(attempt=attempt).exists())
+        self.assertTrue(
+            UserNotification.objects.filter(
+                recipient=self.teacher,
+                category='attempt',
+                attempt=attempt,
+            ).exists()
+        )
+
 
 class AnalyticsTests(TestingBaseMixin, TestCase):
     def test_build_student_topic_diagnostics_identifies_weak_topic(self):
@@ -444,6 +485,17 @@ class AnalyticsTests(TestingBaseMixin, TestCase):
         self.assertEqual(leaderboard[0]['student'], self.student)
         self.assertEqual(leaderboard[0]['rank'], 1)
         self.assertGreater(leaderboard[0]['average_score'], leaderboard[1]['average_score'])
+
+    def test_build_attempt_comparison_returns_delta_against_previous_attempt(self):
+        first_attempt = self.create_submitted_attempt(student=self.student, answers_mapping=self.partial_answers())
+        second_attempt = self.create_submitted_attempt(student=self.student, answers_mapping=self.correct_answers())
+
+        comparison = build_attempt_comparison(second_attempt)
+
+        self.assertEqual(comparison['previous_attempt'], first_attempt)
+        self.assertEqual(comparison['score_delta'], 60)
+        self.assertEqual(comparison['correct_answers_delta'], 1)
+        self.assertEqual(comparison['improved_topics'][0]['topic'], 'ORM')
 
 
 class CourseAndDashboardViewTests(TestingBaseMixin, TestCase):
@@ -555,6 +607,33 @@ class CourseAndDashboardViewTests(TestingBaseMixin, TestCase):
         self.assertEqual(response.context['summary']['students'], 1)
         self.assertEqual(response.context['summary']['attempts'], 1)
         self.assertEqual(response.context['summary']['average_score'], 100)
+
+    def test_dashboard_and_notification_center_show_recent_notifications(self):
+        attempt = self.create_submitted_attempt(student=self.student)
+        self.client.force_login(self.teacher)
+
+        dashboard_response = self.client.get(reverse('testing:dashboard'))
+        self.assertEqual(dashboard_response.status_code, 200)
+        self.assertEqual(dashboard_response.context['summary']['unread_notifications'], 1)
+        self.assertEqual(dashboard_response.context['recent_notifications'][0].attempt, attempt)
+
+        notifications_response = self.client.get(reverse('testing:notifications'))
+        self.assertEqual(notifications_response.status_code, 200)
+        self.assertContains(notifications_response, attempt.quiz.title)
+
+    def test_user_can_mark_notification_as_read(self):
+        attempt = self.create_submitted_attempt(student=self.student)
+        notification = UserNotification.objects.get(attempt=attempt, recipient=self.teacher)
+        self.client.force_login(self.teacher)
+
+        response = self.client.post(
+            reverse('testing:notification_mark_read', args=[notification.pk]),
+            {'next': reverse('testing:notifications')},
+        )
+
+        self.assertRedirects(response, reverse('testing:notifications'))
+        notification.refresh_from_db()
+        self.assertTrue(notification.is_read)
 
 
 class StudentFlowTests(TestingBaseMixin, TestCase):
@@ -712,6 +791,55 @@ class StudentFlowTests(TestingBaseMixin, TestCase):
 
         self.assertRedirects(response, reverse('testing:attempt_result', args=[attempt.pk]))
 
+    def test_student_can_autosave_attempt_draft_via_view(self):
+        attempt = Attempt.objects.create(quiz=self.quiz, student=self.student)
+        self.client.force_login(self.student)
+
+        response = self.client.post(
+            reverse('testing:attempt_draft', args=[attempt.pk]),
+            data=json.dumps(
+                {
+                    'answers': {
+                        str(self.question_single.id): [self.single_correct.id],
+                        str(self.question_multi.id): [self.multi_correct_1.id],
+                    },
+                    'last_question_id': self.question_multi.id,
+                }
+            ),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload['answered_questions_count'], 2)
+        self.assertTrue(AttemptDraft.objects.filter(attempt=attempt).exists())
+
+    def test_attempt_detail_restores_saved_draft_answers(self):
+        attempt = Attempt.objects.create(quiz=self.quiz, student=self.student)
+        save_attempt_draft(attempt, self.partial_answers(), last_question_id=self.question_multi.id)
+        self.client.force_login(self.student)
+
+        response = self.client.get(reverse('testing:attempt_detail', args=[attempt.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        form = response.context['form']
+        self.assertEqual(form[AttemptForm.get_field_name(self.question_single.id)].value(), str(self.single_correct.id))
+        self.assertEqual(
+            form[AttemptForm.get_field_name(self.question_multi.id)].value(),
+            [str(self.multi_correct_1.id)],
+        )
+
+    def test_attempt_result_includes_comparison_context(self):
+        self.create_submitted_attempt(student=self.student, answers_mapping=self.partial_answers())
+        second_attempt = self.create_submitted_attempt(student=self.student, answers_mapping=self.correct_answers())
+        self.client.force_login(self.student)
+
+        response = self.client.get(reverse('testing:attempt_result', args=[second_attempt.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['attempt_comparison']['score_delta'], 60)
+        self.assertEqual(response.context['attempt_comparison']['improved_topics'][0]['topic'], 'ORM')
+
     def test_student_cannot_view_other_students_attempt(self):
         Enrollment.objects.create(course=self.course, student=self.other_student)
         attempt = self.create_submitted_attempt(student=self.other_student)
@@ -791,6 +919,13 @@ class TeacherManagementTests(TestingBaseMixin, TestCase):
 
         self.assertRedirects(response, reverse('testing:course_detail', args=[self.course.pk]))
         self.assertTrue(Announcement.objects.filter(course=self.course, title='Deadline update').exists())
+        self.assertTrue(
+            UserNotification.objects.filter(
+                recipient=self.student,
+                category='announcement',
+                title__contains='Deadline update',
+            ).exists()
+        )
 
     def test_teacher_can_create_quiz(self):
         self.client.force_login(self.teacher)
@@ -813,6 +948,13 @@ class TeacherManagementTests(TestingBaseMixin, TestCase):
         quiz = Quiz.objects.get(title='Deployment basics')
         self.assertRedirects(response, reverse('testing:quiz_detail', args=[quiz.pk]))
         self.assertEqual(quiz.course, self.course)
+        self.assertTrue(
+            UserNotification.objects.filter(
+                recipient=self.student,
+                category='quiz',
+                title__contains='Deployment basics',
+            ).exists()
+        )
 
     def test_teacher_can_view_quiz_attempts_analytics(self):
         Enrollment.objects.create(course=self.course, student=self.other_student)
@@ -849,6 +991,13 @@ class TeacherManagementTests(TestingBaseMixin, TestCase):
         review = AttemptReview.objects.get(attempt=attempt)
         self.assertEqual(review.teacher, self.teacher)
         self.assertIn('ORM', review.feedback)
+        self.assertTrue(
+            UserNotification.objects.filter(
+                recipient=self.student,
+                category='review',
+                attempt=attempt,
+            ).exists()
+        )
 
     def test_teacher_can_export_course_results_csv(self):
         Enrollment.objects.create(course=self.course, student=self.other_student)
@@ -1008,6 +1157,43 @@ class ApiTests(TestingBaseMixin, TestCase):
         self.assertEqual(payload['attempt']['score_percent'], 100)
         self.assertEqual(len(payload['answers']), 2)
         self.assertTrue(payload['show_answer_key'])
+
+    def test_api_student_can_save_attempt_draft(self):
+        attempt = Attempt.objects.create(quiz=self.quiz, student=self.student)
+
+        response = self.client.post(
+            reverse('testing_api:attempt_draft', args=[attempt.pk]),
+            json.dumps(
+                {
+                    'answers': {
+                        str(self.question_single.id): [self.single_correct.id],
+                        str(self.question_multi.id): [self.multi_correct_1.id],
+                    },
+                    'last_question_id': self.question_multi.id,
+                }
+            ),
+            content_type='application/json',
+            **self.auth_headers(self.student),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload['answered_questions_count'], 2)
+        self.assertEqual(payload['last_question_id'], self.question_multi.id)
+
+    def test_api_attempt_detail_includes_comparison_data(self):
+        self.create_submitted_attempt(student=self.student, answers_mapping=self.partial_answers())
+        second_attempt = self.create_submitted_attempt(student=self.student, answers_mapping=self.correct_answers())
+
+        response = self.client.get(
+            reverse('testing_api:attempt_detail', args=[second_attempt.pk]),
+            **self.auth_headers(self.student),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload['comparison']['score_delta'], 60)
+        self.assertEqual(payload['comparison']['improved_topics'][0]['topic'], 'ORM')
 
     def test_api_attempt_detail_hides_answer_key_for_student_when_disabled(self):
         attempt = self.create_submitted_attempt(student=self.student, quiz=self.hidden_quiz)

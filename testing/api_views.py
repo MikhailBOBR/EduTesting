@@ -10,12 +10,15 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .analytics import (
+    build_attempt_comparison,
     build_attempt_topic_insights,
     build_course_attention_students,
     build_course_leaderboard,
     build_course_topic_diagnostics,
 )
 from .api_serializers import (
+    ApiAttemptDraftSaveRequestSerializer,
+    ApiAttemptDraftSerializer,
     ApiAttemptDetailSerializer,
     ApiAttemptStartResponseSerializer,
     ApiAttemptSubmitRequestSerializer,
@@ -34,7 +37,7 @@ from .api_serializers import (
     ApiUserSerializer,
 )
 from .models import Announcement, Attempt, AttemptStatus, Course, Enrollment, Quiz
-from .services import submit_attempt
+from .services import save_attempt_draft, submit_attempt
 
 
 def serialize_user(user):
@@ -83,6 +86,7 @@ def build_attempt_payload(attempt, user):
         )
 
     topic_insights = build_attempt_topic_insights(attempt)
+    comparison = build_attempt_comparison(attempt)
     payload = {
         'attempt': attempt,
         'answers': answers_payload,
@@ -90,6 +94,13 @@ def build_attempt_payload(attempt, user):
         'recommendations': topic_insights['recommendations'],
         'review': getattr(attempt, 'review', None),
         'show_answer_key': show_answer_key,
+        'comparison': {
+            **comparison,
+            'previous_attempt_id': comparison['previous_attempt'].pk,
+            'previous_submitted_at': comparison['previous_attempt'].submitted_at,
+        }
+        if comparison
+        else None,
     }
     return ApiAttemptDetailSerializer(payload).data
 
@@ -346,6 +357,52 @@ class ApiAttemptDetailView(APIView):
     examples=[
         OpenApiExample(
             'Пример тела запроса',
+            value={'answers': {'1': [2], '2': [4, 6]}},
+            request_only=True,
+        )
+    ],
+)
+@extend_schema(
+    summary='РђРІС‚РѕСЃРѕС…СЂР°РЅРµРЅРёРµ С‡РµСЂРЅРѕРІРёРєР° РїРѕРїС‹С‚РєРё',
+    request=ApiAttemptDraftSaveRequestSerializer,
+    responses={200: ApiAttemptDraftSerializer},
+)
+class ApiAttemptDraftSaveView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk, *args, **kwargs):
+        attempt = get_object_or_404(
+            Attempt.objects.select_related('quiz', 'quiz__course', 'student').prefetch_related('quiz__questions__choices'),
+            pk=pk,
+        )
+        ensure_student(request.user)
+        if attempt.student_id != request.user.id:
+            raise PermissionDenied('РњРѕР¶РЅРѕ СЃРѕС…СЂР°РЅСЏС‚СЊ С‚РѕР»СЊРєРѕ СЃРІРѕРё С‡РµСЂРЅРѕРІРёРєРё.')
+        if attempt.status == AttemptStatus.SUBMITTED:
+            raise ValidationError({'detail': 'РќРµР»СЊР·СЏ СЃРѕС…СЂР°РЅСЏС‚СЊ С‡РµСЂРЅРѕРІРёРє РґР»СЏ Р·Р°РІРµСЂС€РµРЅРЅРѕР№ РїРѕРїС‹С‚РєРё.'})
+
+        serializer = ApiAttemptDraftSaveRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        draft = save_attempt_draft(
+            attempt,
+            serializer.validated_data['answers'],
+            last_question_id=serializer.validated_data.get('last_question_id'),
+        )
+        payload = {
+            'saved_at': draft.saved_at,
+            'autosave_count': draft.autosave_count,
+            'answered_questions_count': draft.answered_questions_count,
+            'last_question_id': draft.last_question_id,
+        }
+        return Response(ApiAttemptDraftSerializer(payload).data)
+
+@extend_schema(
+    summary='РћС‚РїСЂР°РІРєР° РїРѕРїС‹С‚РєРё РЅР° РїСЂРѕРІРµСЂРєСѓ',
+    request=ApiAttemptSubmitRequestSerializer,
+    responses={200: ApiAttemptDetailSerializer},
+    examples=[
+        OpenApiExample(
+            'РџСЂРёРјРµСЂ С‚РµР»Р° Р·Р°РїСЂРѕСЃР°',
             value={'answers': {'1': [2], '2': [4, 6]}},
             request_only=True,
         )

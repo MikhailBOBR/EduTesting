@@ -270,4 +270,34 @@
         </div>
     </section>
 {% endif %}
+
+<section class="panel">
+    <div class="panel__header">
+        <div class="section-kicker">РЈРІРµРґРѕРјР»РµРЅРёСЏ</div>
+        <h2>РџРѕСЃР»РµРґРЅРёРµ СЃРѕР±С‹С‚РёСЏ</h2>
+        <p>РќРѕРІС‹Рµ РѕР±СЉСЏРІР»РµРЅРёСЏ, РїРѕРїС‹С‚РєРё, РєРѕРјРјРµРЅС‚Р°СЂРёРё Рё РёР·РјРµРЅРµРЅРёСЏ РїРѕ С‚РµСЃС‚Р°Рј.</p>
+    </div>
+    <div class="button-row">
+        <a class="button button-secondary" href="{% url 'testing:notifications' %}">РћС‚РєСЂС‹С‚СЊ РІСЃРµ СѓРІРµРґРѕРјР»РµРЅРёСЏ</a>
+    </div>
+    <div class="card-list">
+        {% for notification in recent_notifications %}
+            <article class="card notification-card{% if notification.is_read %} notification-card--read{% endif %}">
+                <div class="tag-row">
+                    <span class="badge">{{ notification.get_category_display }}</span>
+                    <span class="meta-chip">{{ notification.created_at|date:"d.m.Y H:i" }}</span>
+                </div>
+                <h3>{{ notification.title }}</h3>
+                {% if notification.message %}
+                    <p class="muted">{{ notification.message }}</p>
+                {% endif %}
+                {% if notification.action_url %}
+                    <a href="{{ notification.action_url }}">РћС‚РєСЂС‹С‚СЊ</a>
+                {% endif %}
+            </article>
+        {% empty %}
+            <div class="empty-state">РќРѕРІС‹С… СѓРІРµРґРѕРјР»РµРЅРёР№ РїРѕРєР° РЅРµС‚.</div>
+        {% endfor %}
+    </div>
+</section>
 {% endblock %}

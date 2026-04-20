@@ -304,6 +304,27 @@ class ApiTopicInsightSerializer(serializers.Serializer):
     recommendation = serializers.CharField()
 
 
+class ApiAttemptComparisonTopicSerializer(serializers.Serializer):
+    topic = serializers.CharField()
+    previous_accuracy = serializers.IntegerField()
+    current_accuracy = serializers.IntegerField()
+    delta_accuracy = serializers.IntegerField()
+    trend = serializers.CharField()
+
+
+class ApiAttemptComparisonSerializer(serializers.Serializer):
+    previous_attempt_id = serializers.IntegerField()
+    previous_submitted_at = serializers.DateTimeField()
+    previous_score_percent = serializers.IntegerField()
+    score_delta = serializers.IntegerField()
+    points_delta = serializers.IntegerField()
+    correct_answers_delta = serializers.IntegerField()
+    duration_delta_minutes = serializers.FloatField()
+    improved_topics = ApiAttemptComparisonTopicSerializer(many=True)
+    declined_topics = ApiAttemptComparisonTopicSerializer(many=True)
+    unchanged_topics_count = serializers.IntegerField()
+
+
 class ApiAttemptDetailSerializer(serializers.Serializer):
     attempt = ApiAttemptSummarySerializer()
     answers = ApiAttemptAnswerSerializer(many=True)
@@ -311,6 +332,7 @@ class ApiAttemptDetailSerializer(serializers.Serializer):
     recommendations = serializers.ListField(child=serializers.CharField(), allow_empty=True)
     review = ApiAttemptReviewSerializer(allow_null=True)
     show_answer_key = serializers.BooleanField()
+    comparison = ApiAttemptComparisonSerializer(allow_null=True)
 
 
 class ApiAttemptStartResponseSerializer(serializers.Serializer):
@@ -331,6 +353,17 @@ class ApiAttemptSubmitRequestSerializer(serializers.Serializer):
             except (TypeError, ValueError):
                 raise serializers.ValidationError('Ключи словаря answers должны быть числовыми id вопросов.')
         return normalized
+
+
+class ApiAttemptDraftSerializer(serializers.Serializer):
+    saved_at = serializers.DateTimeField()
+    autosave_count = serializers.IntegerField()
+    answered_questions_count = serializers.IntegerField()
+    last_question_id = serializers.IntegerField(allow_null=True)
+
+
+class ApiAttemptDraftSaveRequestSerializer(ApiAttemptSubmitRequestSerializer):
+    last_question_id = serializers.IntegerField(required=False, allow_null=True)
 
 
 class ApiQuizAttemptListSerializer(serializers.ModelSerializer):

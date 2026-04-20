@@ -470,6 +470,19 @@ select.form-control:focus {
     grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.notification-card {
+    display: grid;
+    gap: 8px;
+}
+
+.notification-card--read {
+    background: #fafafa;
+}
+
+.autosave-note strong {
+    color: var(--text);
+}
+
 @media (max-width: 980px) {
     .topbar__inner {
         grid-template-columns: 1fr;

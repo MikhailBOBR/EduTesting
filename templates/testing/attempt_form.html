@@ -23,6 +23,17 @@
     </div>
 </section>
 
+<section class="inline-note autosave-note">
+    <strong>Автосохранение:</strong>
+    <span id="autosave-status">
+        {% if draft %}
+            Черновик восстановлен. Последнее сохранение: {{ draft.saved_at|date:"d.m.Y H:i:s" }}.
+        {% else %}
+            Ответы будут сохраняться автоматически по мере заполнения.
+        {% endif %}
+    </span>
+</section>
+
 <section class="panel">
     <form method="post" class="stacked-form">
         {% csrf_token %}
@@ -47,4 +58,68 @@
         </div>
     </form>
 </section>
+<script>
+    (() => {
+        const form = document.querySelector('.stacked-form');
+        const statusNode = document.getElementById('autosave-status');
+        if (!form || !statusNode) {
+            return;
+        }
+
+        const saveUrl = "{% url 'testing:attempt_draft' attempt.pk %}";
+        const csrfToken = form.querySelector('input[name="csrfmiddlewaretoken"]')?.value;
+        let saveTimeoutId = null;
+
+        const collectAnswers = () => {
+            const answers = {};
+            const groupedInputs = form.querySelectorAll('input[name^="question_"]');
+
+            groupedInputs.forEach((input) => {
+                const questionId = input.name.replace('question_', '');
+                if (!answers[questionId]) {
+                    answers[questionId] = [];
+                }
+                if (input.checked) {
+                    answers[questionId].push(Number(input.value));
+                }
+            });
+
+            return answers;
+        };
+
+        const scheduleSave = (lastQuestionId = null) => {
+            clearTimeout(saveTimeoutId);
+            saveTimeoutId = window.setTimeout(async () => {
+                statusNode.textContent = 'Сохраняем черновик...';
+                try {
+                    const response = await fetch(saveUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': csrfToken,
+                        },
+                        body: JSON.stringify({
+                            answers: collectAnswers(),
+                            last_question_id: lastQuestionId,
+                        }),
+                    });
+                    if (!response.ok) {
+                        throw new Error('autosave_failed');
+                    }
+                    const payload = await response.json();
+                    statusNode.textContent = `Черновик сохранен: ${payload.saved_at}. Вопросов с ответами: ${payload.answered_questions_count}.`;
+                } catch (error) {
+                    statusNode.textContent = 'Не удалось сохранить черновик. Попробуйте еще раз через несколько секунд.';
+                }
+            }, 500);
+        };
+
+        form.querySelectorAll('input[name^="question_"]').forEach((input) => {
+            input.addEventListener('change', () => {
+                const questionId = Number(input.name.replace('question_', ''));
+                scheduleSave(questionId);
+            });
+        });
+    })();
+</script>
 {% endblock %}

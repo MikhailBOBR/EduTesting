@@ -1,10 +1,11 @@
 import csv
+import json
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
 from django.db.models import Avg, Q
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -14,6 +15,7 @@ from django.views.generic import CreateView, DetailView, ListView, TemplateView,
 from accounts.mixins import StudentRequiredMixin, TeacherRequiredMixin
 
 from .analytics import (
+    build_attempt_comparison,
     build_attempt_topic_insights,
     build_course_attention_students,
     build_course_gradebook,
@@ -32,8 +34,15 @@ from .forms import (
     QuestionForm,
     QuizForm,
 )
-from .models import Announcement, Attempt, AttemptReview, AttemptStatus, Choice, Course, Enrollment, Question, Quiz
-from .services import submit_attempt
+from .models import Announcement, Attempt, AttemptReview, AttemptStatus, Choice, Course, Enrollment, Question, Quiz, UserNotification
+from .services import (
+    get_attempt_draft_mapping,
+    notify_announcement,
+    notify_attempt_review,
+    notify_quiz,
+    save_attempt_draft,
+    submit_attempt,
+)
 
 
 def build_student_progress(course, student):
@@ -128,6 +137,12 @@ class DashboardView(LoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         user = self.request.user
+        recent_notifications = (
+            UserNotification.objects.filter(recipient=user)
+            .select_related('course', 'quiz', 'attempt')
+            .order_by('is_read', '-created_at')[:6]
+        )
+        unread_notifications_count = UserNotification.objects.filter(recipient=user, is_read=False).count()
 
         if user.is_teacher:
             managed_courses = Course.objects.filter(owner=user).order_by('title')
@@ -175,9 +190,11 @@ class DashboardView(LoginRequiredMixin, TemplateView):
                             status=AttemptStatus.SUBMITTED,
                         ).count(),
                         'average_score': round(average_score),
+                        'unread_notifications': unread_notifications_count,
                     },
                     'course_overview': course_overview,
                     'recent_attempts': recent_attempts,
+                    'recent_notifications': recent_notifications,
                     'recent_announcements': (
                         Announcement.objects.filter(course__owner=user)
                         .select_related('course')
@@ -225,9 +242,11 @@ class DashboardView(LoginRequiredMixin, TemplateView):
                         .count(),
                         'average_score': round(average_score),
                         'pending_quizzes': pending_quizzes_total,
+                        'unread_notifications': unread_notifications_count,
                     },
                     'course_progress': progress_rows,
                     'recent_attempts': recent_attempts,
+                    'recent_notifications': recent_notifications,
                     'recent_announcements': (
                         Announcement.objects.filter(course__enrollments__student=user)
                         .select_related('course')
@@ -239,6 +258,40 @@ class DashboardView(LoginRequiredMixin, TemplateView):
             )
 
         return context
+
+
+class NotificationListView(LoginRequiredMixin, ListView):
+    template_name = 'testing/notification_list.html'
+    context_object_name = 'notifications'
+
+    def get_queryset(self):
+        return (
+            UserNotification.objects.filter(recipient=self.request.user)
+            .select_related('course', 'quiz', 'attempt')
+            .order_by('is_read', '-created_at')
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['unread_count'] = UserNotification.objects.filter(
+            recipient=self.request.user,
+            is_read=False,
+        ).count()
+        return context
+
+
+class NotificationMarkReadView(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        notification = get_object_or_404(UserNotification, pk=pk, recipient=request.user)
+        notification.mark_as_read()
+        return redirect(request.POST.get('next') or 'testing:notifications')
+
+
+class NotificationMarkAllReadView(LoginRequiredMixin, View):
+    def post(self, request):
+        unread_notifications = UserNotification.objects.filter(recipient=request.user, is_read=False)
+        unread_notifications.update(is_read=True, read_at=timezone.now())
+        return redirect(request.POST.get('next') or 'testing:notifications')
 
 
 class CourseListView(ListView):
@@ -523,6 +576,7 @@ class AnnouncementCreateView(TeacherRequiredMixin, CreateView):
     def form_valid(self, form):
         form.instance.course = self.course
         response = super().form_valid(form)
+        notify_announcement(self.object)
         messages.success(self.request, 'Объявление опубликовано.')
         return response
 
@@ -546,7 +600,11 @@ class AnnouncementUpdateView(TeacherRequiredMixin, UpdateView):
 
     def form_valid(self, form):
         messages.success(self.request, 'Объявление обновлено.')
-        return super().form_valid(form)
+        changed_data = set(form.changed_data)
+        response = super().form_valid(form)
+        if changed_data:
+            notify_announcement(self.object, updated=True)
+        return response
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -569,6 +627,8 @@ class QuizCreateView(TeacherRequiredMixin, CreateView):
     def form_valid(self, form):
         form.instance.course = self.course
         response = super().form_valid(form)
+        if self.object.is_published:
+            notify_quiz(self.object)
         messages.success(self.request, 'Тест создан.')
         return response
 
@@ -592,7 +652,16 @@ class QuizUpdateView(TeacherRequiredMixin, UpdateView):
 
     def form_valid(self, form):
         messages.success(self.request, 'Параметры теста обновлены.')
-        return super().form_valid(form)
+        previous_quiz = self.get_queryset().get(pk=self.object.pk)
+        changed_data = set(form.changed_data)
+        response = super().form_valid(form)
+        should_notify = self.object.is_published and (
+            not previous_quiz.is_published
+            or bool(changed_data & {'title', 'description', 'available_from', 'available_until', 'time_limit_minutes'})
+        )
+        if should_notify:
+            notify_quiz(self.object, updated=previous_quiz.is_published)
+        return response
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -826,22 +895,23 @@ class AttemptDetailView(LoginRequiredMixin, View):
             raise PermissionDenied
         return attempt
 
+    def get_context_payload(self, attempt, form):
+        draft = getattr(attempt, 'draft', None)
+        return {
+            'attempt': attempt,
+            'quiz': attempt.quiz,
+            'form': form,
+            'deadline_at': attempt.deadline_at,
+            'draft': draft,
+        }
+
     def get(self, request, *args, **kwargs):
         attempt = self.get_attempt()
         if attempt.status == AttemptStatus.SUBMITTED:
             return redirect('testing:attempt_result', pk=attempt.pk)
 
-        form = AttemptForm(quiz=attempt.quiz)
-        return render(
-            request,
-            self.template_name,
-            {
-                'attempt': attempt,
-                'quiz': attempt.quiz,
-                'form': form,
-                'deadline_at': attempt.deadline_at,
-            },
-        )
+        form = AttemptForm(quiz=attempt.quiz, initial_answers=get_attempt_draft_mapping(attempt))
+        return render(request, self.template_name, self.get_context_payload(attempt, form))
 
     def post(self, request, *args, **kwargs):
         attempt = self.get_attempt()
@@ -854,15 +924,36 @@ class AttemptDetailView(LoginRequiredMixin, View):
             messages.success(request, 'Тест завершен, результат сохранен.')
             return redirect('testing:attempt_result', pk=attempt.pk)
 
-        return render(
-            request,
-            self.template_name,
+        return render(request, self.template_name, self.get_context_payload(attempt, form))
+
+
+class AttemptDraftSaveView(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        attempt = get_object_or_404(
+            Attempt.objects.select_related('quiz', 'quiz__course', 'student').prefetch_related('quiz__questions__choices'),
+            pk=pk,
+            student=request.user,
+        )
+        if attempt.status == AttemptStatus.SUBMITTED:
+            return JsonResponse({'detail': 'Draft is not available for a submitted attempt.'}, status=400)
+
+        try:
+            payload = json.loads(request.body or '{}')
+        except json.JSONDecodeError:
+            return JsonResponse({'detail': 'Invalid JSON payload.'}, status=400)
+
+        draft = save_attempt_draft(
+            attempt,
+            payload.get('answers', {}),
+            last_question_id=payload.get('last_question_id'),
+        )
+        return JsonResponse(
             {
-                'attempt': attempt,
-                'quiz': attempt.quiz,
-                'form': form,
-                'deadline_at': attempt.deadline_at,
-            },
+                'saved_at': timezone.localtime(draft.saved_at).strftime('%d.%m.%Y %H:%M:%S'),
+                'answered_questions_count': draft.answered_questions_count,
+                'autosave_count': draft.autosave_count,
+                'last_question_id': draft.last_question_id,
+            }
         )
 
 
@@ -892,6 +983,7 @@ class AttemptResultView(LoginRequiredMixin, DetailView):
         context['can_review'] = self.request.user.is_teacher and self.object.quiz.course.owner_id == self.request.user.id
         context['attempt_review'] = getattr(self.object, 'review', None)
         context['topic_insights'] = build_attempt_topic_insights(self.object)
+        context['attempt_comparison'] = build_attempt_comparison(self.object)
         return context
 
 
@@ -923,7 +1015,10 @@ class AttemptReviewView(TeacherRequiredMixin, UpdateView):
         form.instance.teacher = self.request.user
         form.instance.reviewed_at = timezone.now()
         messages.success(self.request, 'РљРѕРјРјРµРЅС‚Р°СЂРёР№ РїСЂРµРїРѕРґР°РІР°С‚РµР»СЏ СЃРѕС…СЂР°РЅРµРЅ.')
-        return super().form_valid(form)
+        updated = self.get_object() is not None
+        response = super().form_valid(form)
+        notify_attempt_review(self.object, updated=updated)
+        return response
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

@@ -3,6 +3,7 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 from .api_views import (
     ApiAttemptDetailView,
+    ApiAttemptDraftSaveView,
     ApiAttemptSubmitView,
     ApiCourseAnalyticsView,
     ApiCourseDetailView,
@@ -34,5 +35,6 @@ urlpatterns = [
     path('quizzes/<int:pk>/start/', ApiQuizStartView.as_view(), name='quiz_start'),
     path('quizzes/<int:pk>/attempts/', ApiQuizAttemptsView.as_view(), name='quiz_attempts'),
     path('attempts/<int:pk>/', ApiAttemptDetailView.as_view(), name='attempt_detail'),
+    path('attempts/<int:pk>/draft/', ApiAttemptDraftSaveView.as_view(), name='attempt_draft'),
     path('attempts/<int:pk>/submit/', ApiAttemptSubmitView.as_view(), name='attempt_submit'),
 ]
