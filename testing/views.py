@@ -25,6 +25,8 @@ from .analytics import (
 )
 from .forms import (
     AnnouncementForm,
+    AttemptAppealForm,
+    AttemptAppealReviewForm,
     AttemptForm,
     AttemptReviewForm,
     ChoiceForm,
@@ -33,13 +35,31 @@ from .forms import (
     JoinCourseForm,
     QuestionForm,
     QuizForm,
+    QuizAccessOverrideForm,
 )
-from .models import Announcement, Attempt, AttemptReview, AttemptStatus, Choice, Course, Enrollment, Question, Quiz, UserNotification
+from .models import (
+    Announcement,
+    AppealStatus,
+    Attempt,
+    AttemptAppeal,
+    AttemptReview,
+    AttemptStatus,
+    Choice,
+    Course,
+    Enrollment,
+    Question,
+    Quiz,
+    QuizAccessOverride,
+    UserNotification,
+)
 from .services import (
     get_attempt_draft_mapping,
     notify_announcement,
+    notify_attempt_appeal,
+    notify_attempt_appeal_resolution,
     notify_attempt_review,
     notify_quiz,
+    notify_quiz_override,
     save_attempt_draft,
     submit_attempt,
 )
@@ -146,6 +166,14 @@ class DashboardView(LoginRequiredMixin, TemplateView):
 
         if user.is_teacher:
             managed_courses = Course.objects.filter(owner=user).order_by('title')
+            pending_appeals = (
+                AttemptAppeal.objects.filter(
+                    attempt__quiz__course__owner=user,
+                    status=AppealStatus.PENDING,
+                )
+                .select_related('attempt', 'attempt__quiz', 'attempt__student')
+                .order_by('-created_at')[:6]
+            )
             recent_attempts = (
                 Attempt.objects.filter(quiz__course__owner=user, status=AttemptStatus.SUBMITTED)
                 .select_related('student', 'quiz', 'quiz__course')
@@ -191,9 +219,14 @@ class DashboardView(LoginRequiredMixin, TemplateView):
                         ).count(),
                         'average_score': round(average_score),
                         'unread_notifications': unread_notifications_count,
+                        'pending_appeals': AttemptAppeal.objects.filter(
+                            attempt__quiz__course__owner=user,
+                            status=AppealStatus.PENDING,
+                        ).count(),
                     },
                     'course_overview': course_overview,
                     'recent_attempts': recent_attempts,
+                    'pending_appeals': pending_appeals,
                     'recent_notifications': recent_notifications,
                     'recent_announcements': (
                         Announcement.objects.filter(course__owner=user)
@@ -213,6 +246,11 @@ class DashboardView(LoginRequiredMixin, TemplateView):
                 Attempt.objects.filter(student=user, status=AttemptStatus.SUBMITTED)
                 .aggregate(avg=Avg('score_percent'))['avg']
                 or 0
+            )
+            open_appeals = (
+                AttemptAppeal.objects.filter(student=user)
+                .select_related('attempt', 'attempt__quiz')
+                .order_by('status', '-created_at')[:6]
             )
             progress_rows = []
             pending_quizzes_total = 0
@@ -243,9 +281,11 @@ class DashboardView(LoginRequiredMixin, TemplateView):
                         'average_score': round(average_score),
                         'pending_quizzes': pending_quizzes_total,
                         'unread_notifications': unread_notifications_count,
+                        'open_appeals': AttemptAppeal.objects.filter(student=user, status=AppealStatus.PENDING).count(),
                     },
                     'course_progress': progress_rows,
                     'recent_attempts': recent_attempts,
+                    'open_appeals': open_appeals,
                     'recent_notifications': recent_notifications,
                     'recent_announcements': (
                         Announcement.objects.filter(course__enrollments__student=user)
@@ -673,6 +713,95 @@ class QuizUpdateView(TeacherRequiredMixin, UpdateView):
         return reverse('testing:quiz_detail', kwargs={'pk': self.object.pk})
 
 
+class QuizAccessOverrideListView(TeacherRequiredMixin, ListView):
+    template_name = 'testing/quiz_override_list.html'
+    context_object_name = 'overrides'
+
+    def dispatch(self, request, *args, **kwargs):
+        self.quiz = get_object_or_404(
+            Quiz.objects.select_related('course'),
+            pk=kwargs['pk'],
+            course__owner=request.user,
+        )
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_queryset(self):
+        return (
+            QuizAccessOverride.objects.filter(quiz=self.quiz)
+            .select_related('student')
+            .order_by('-is_active', 'student__last_name', 'student__first_name', 'student__username')
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['quiz'] = self.quiz
+        context['active_overrides_count'] = self.quiz.access_overrides.filter(is_active=True).count()
+        return context
+
+
+class QuizAccessOverrideCreateView(TeacherRequiredMixin, CreateView):
+    form_class = QuizAccessOverrideForm
+    template_name = 'testing/quiz_override_form.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        self.quiz = get_object_or_404(
+            Quiz.objects.select_related('course'),
+            pk=kwargs['pk'],
+            course__owner=request.user,
+        )
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['quiz'] = self.quiz
+        return kwargs
+
+    def form_valid(self, form):
+        form.instance.quiz = self.quiz
+        response = super().form_valid(form)
+        notify_quiz_override(self.object)
+        messages.success(self.request, 'Индивидуальные условия сохранены.')
+        return response
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['quiz'] = self.quiz
+        context['page_title'] = f'Новые индивидуальные условия для теста "{self.quiz.title}"'
+        return context
+
+    def get_success_url(self):
+        return reverse('testing:quiz_overrides', kwargs={'pk': self.quiz.pk})
+
+
+class QuizAccessOverrideUpdateView(TeacherRequiredMixin, UpdateView):
+    form_class = QuizAccessOverrideForm
+    model = QuizAccessOverride
+    template_name = 'testing/quiz_override_form.html'
+
+    def get_queryset(self):
+        return QuizAccessOverride.objects.filter(quiz__course__owner=self.request.user).select_related('quiz', 'student')
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['quiz'] = self.object.quiz
+        return kwargs
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Индивидуальные условия обновлены.')
+        response = super().form_valid(form)
+        notify_quiz_override(self.object, updated=True)
+        return response
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['quiz'] = self.object.quiz
+        context['page_title'] = f'Редактирование индивидуальных условий для "{self.object.student.get_full_name() or self.object.student.username}"'
+        return context
+
+    def get_success_url(self):
+        return reverse('testing:quiz_overrides', kwargs={'pk': self.object.quiz.pk})
+
+
 class QuestionCreateView(TeacherRequiredMixin, CreateView):
     form_class = QuestionForm
     template_name = 'testing/question_form.html'
@@ -796,6 +925,9 @@ class QuizDetailView(DetailView):
         )
         submitted_attempts = []
         in_progress_attempt = None
+        personal_override = None
+        effective_time_limit_minutes = quiz.time_limit_minutes
+        effective_max_attempts = quiz.max_attempts
 
         if user.is_authenticated and user.is_student:
             submitted_attempts = Attempt.objects.filter(
@@ -808,6 +940,10 @@ class QuizDetailView(DetailView):
                 student=user,
                 status=AttemptStatus.IN_PROGRESS,
             ).first()
+            if is_enrolled:
+                personal_override = quiz.get_access_override(user)
+                effective_time_limit_minutes = quiz.get_effective_time_limit(user)
+                effective_max_attempts = quiz.get_effective_max_attempts(user)
 
         context.update(
             {
@@ -816,6 +952,9 @@ class QuizDetailView(DetailView):
                 'remaining_attempts': quiz.remaining_attempts(user) if is_enrolled else 0,
                 'submitted_attempts': submitted_attempts,
                 'in_progress_attempt': in_progress_attempt,
+                'personal_override': personal_override,
+                'effective_time_limit_minutes': effective_time_limit_minutes,
+                'effective_max_attempts': effective_max_attempts,
                 'can_start': is_enrolled and quiz.is_available and (
                     quiz.remaining_attempts(user) > 0 or in_progress_attempt is not None
                 ),
@@ -826,6 +965,7 @@ class QuizDetailView(DetailView):
                     'average_score': quiz.average_score,
                     'pass_rate': quiz.pass_rate,
                     'unconfigured_questions': quiz.unanswered_configuration_count,
+                    'active_overrides': quiz.access_overrides.filter(is_active=True).count(),
                 },
             }
         )
@@ -875,7 +1015,11 @@ class StartAttemptView(StudentRequiredMixin, View):
                 messages.error(request, 'Лимит попыток исчерпан.')
                 return redirect('testing:quiz_detail', pk=quiz.pk)
 
-            attempt = Attempt.objects.create(quiz=quiz, student=request.user)
+            attempt = Attempt.objects.create(
+                quiz=quiz,
+                student=request.user,
+                time_limit_minutes_snapshot=quiz.get_effective_time_limit(request.user),
+            )
 
         messages.info(request, 'Попытка активна. Ответьте на вопросы и отправьте работу на проверку.')
         return redirect('testing:attempt_detail', pk=attempt.pk)
@@ -903,6 +1047,8 @@ class AttemptDetailView(LoginRequiredMixin, View):
             'form': form,
             'deadline_at': attempt.deadline_at,
             'draft': draft,
+            'effective_time_limit_minutes': attempt.effective_time_limit_minutes,
+            'has_personal_time_limit': attempt.effective_time_limit_minutes != attempt.quiz.time_limit_minutes,
         }
 
     def get(self, request, *args, **kwargs):
@@ -982,6 +1128,13 @@ class AttemptResultView(LoginRequiredMixin, DetailView):
         context['show_answer_key'] = show_answer_key
         context['can_review'] = self.request.user.is_teacher and self.object.quiz.course.owner_id == self.request.user.id
         context['attempt_review'] = getattr(self.object, 'review', None)
+        context['attempt_appeal'] = getattr(self.object, 'appeal', None)
+        context['can_appeal'] = self.request.user.is_student and self.object.student_id == self.request.user.id
+        context['can_manage_appeal'] = (
+            self.request.user.is_teacher
+            and self.object.quiz.course.owner_id == self.request.user.id
+            and hasattr(self.object, 'appeal')
+        )
         context['topic_insights'] = build_attempt_topic_insights(self.object)
         context['attempt_comparison'] = build_attempt_comparison(self.object)
         return context
@@ -1028,6 +1181,95 @@ class AttemptReviewView(TeacherRequiredMixin, UpdateView):
 
     def get_success_url(self):
         return reverse('testing:attempt_result', kwargs={'pk': self.attempt.pk})
+
+
+class AttemptAppealEditView(StudentRequiredMixin, UpdateView):
+    form_class = AttemptAppealForm
+    model = AttemptAppeal
+    template_name = 'testing/attempt_appeal_form.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        self.attempt = get_object_or_404(
+            Attempt.objects.select_related('quiz', 'quiz__course', 'student'),
+            pk=kwargs['pk'],
+            student=request.user,
+            status=AttemptStatus.SUBMITTED,
+        )
+        existing_appeal = AttemptAppeal.objects.filter(attempt=self.attempt).first()
+        if existing_appeal and existing_appeal.status != AppealStatus.PENDING:
+            messages.info(request, 'Апелляция уже рассмотрена преподавателем и больше не редактируется.')
+            return redirect('testing:attempt_result', pk=self.attempt.pk)
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_object(self, queryset=None):
+        return AttemptAppeal.objects.filter(attempt=self.attempt).first()
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        if kwargs.get('instance') is None:
+            kwargs['instance'] = AttemptAppeal(attempt=self.attempt, student=self.request.user)
+        return kwargs
+
+    def form_valid(self, form):
+        existing_appeal = self.get_object()
+        form.instance.attempt = self.attempt
+        form.instance.student = self.request.user
+        form.instance.status = AppealStatus.PENDING
+        form.instance.teacher_response = ''
+        form.instance.resolved_by = None
+        form.instance.resolved_at = None
+        response = super().form_valid(form)
+        notify_attempt_appeal(self.object, updated=existing_appeal is not None)
+        messages.success(self.request, 'Апелляция сохранена и отправлена преподавателю.')
+        return response
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['attempt'] = self.attempt
+        context['page_title'] = 'Апелляция по попытке'
+        return context
+
+    def get_success_url(self):
+        return reverse('testing:attempt_result', kwargs={'pk': self.attempt.pk})
+
+
+class AttemptAppealReviewView(TeacherRequiredMixin, UpdateView):
+    form_class = AttemptAppealReviewForm
+    model = AttemptAppeal
+    template_name = 'testing/attempt_appeal_review_form.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        self.appeal = get_object_or_404(
+            AttemptAppeal.objects.select_related('attempt', 'attempt__quiz', 'attempt__quiz__course', 'student'),
+            attempt_id=kwargs['pk'],
+            attempt__quiz__course__owner=request.user,
+        )
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_object(self, queryset=None):
+        return self.appeal
+
+    def form_valid(self, form):
+        form.instance.resolved_by = None
+        form.instance.resolved_at = None
+        if form.cleaned_data['status'] != AppealStatus.PENDING:
+            form.instance.resolved_by = self.request.user
+            form.instance.resolved_at = timezone.now()
+        response = super().form_valid(form)
+        if self.object.status != AppealStatus.PENDING:
+            notify_attempt_appeal_resolution(self.object)
+        messages.success(self.request, 'Решение по апелляции сохранено.')
+        return response
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['attempt'] = self.appeal.attempt
+        context['appeal'] = self.appeal
+        context['page_title'] = 'Рассмотрение апелляции'
+        return context
+
+    def get_success_url(self):
+        return reverse('testing:attempt_result', kwargs={'pk': self.appeal.attempt_id})
 
 
 class QuizAttemptsView(TeacherRequiredMixin, ListView):

@@ -6,11 +6,14 @@ from django.utils import timezone
 
 from .models import (
     Answer,
+    AppealStatus,
+    AttemptAppeal,
     AttemptDraft,
     AttemptStatus,
     Enrollment,
     EnrollmentStatus,
     NotificationCategory,
+    QuizAccessOverride,
     UserNotification,
 )
 
@@ -155,6 +158,26 @@ def notify_quiz(quiz, *, updated=False):
     )
 
 
+def notify_quiz_override(override, *, updated=False):
+    prefix = 'Обновлены условия теста' if updated else 'Индивидуальные условия по тесту'
+    details = []
+    if override.extra_time_minutes:
+        details.append(f'+{override.extra_time_minutes} мин. ко времени')
+    if override.extra_attempts:
+        details.append(f'+{override.extra_attempts} попытк(и)')
+    details_text = ', '.join(details) if details else 'условия обновлены преподавателем'
+
+    return create_user_notification(
+        override.student,
+        category=NotificationCategory.QUIZ,
+        title=f'{prefix}: {override.quiz.title}',
+        message=f'Для вас установлены персональные параметры прохождения: {details_text}.',
+        action_url=reverse('testing:quiz_detail', kwargs={'pk': override.quiz_id}),
+        course=override.quiz.course,
+        quiz=override.quiz,
+    )
+
+
 def notify_attempt_submission(attempt):
     teacher = attempt.quiz.course.owner
     student_name = attempt.student.get_full_name() or attempt.student.username
@@ -181,6 +204,34 @@ def notify_attempt_review(review, *, updated=False):
         course=review.attempt.quiz.course,
         quiz=review.attempt.quiz,
         attempt=review.attempt,
+    )
+
+
+def notify_attempt_appeal(appeal, *, updated=False):
+    prefix = 'Апелляция обновлена' if updated else 'Новая апелляция'
+    return create_user_notification(
+        appeal.attempt.quiz.course.owner,
+        category=NotificationCategory.APPEAL,
+        title=f'{prefix}: {appeal.attempt.quiz.title}',
+        message=f'{appeal.student.get_full_name() or appeal.student.username} просит пересмотреть результат попытки.',
+        action_url=reverse('testing:attempt_result', kwargs={'pk': appeal.attempt_id}),
+        course=appeal.attempt.quiz.course,
+        quiz=appeal.attempt.quiz,
+        attempt=appeal.attempt,
+    )
+
+
+def notify_attempt_appeal_resolution(appeal):
+    status_text = 'принята' if appeal.status == AppealStatus.APPROVED else 'отклонена'
+    return create_user_notification(
+        appeal.student,
+        category=NotificationCategory.APPEAL,
+        title=f'Апелляция {status_text}: {appeal.attempt.quiz.title}',
+        message='Преподаватель рассмотрел вашу апелляцию по попытке.',
+        action_url=reverse('testing:attempt_result', kwargs={'pk': appeal.attempt_id}),
+        course=appeal.attempt.quiz.course,
+        quiz=appeal.attempt.quiz,
+        attempt=appeal.attempt,
     )
 
 

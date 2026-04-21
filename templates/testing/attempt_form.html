@@ -10,7 +10,7 @@
         <p class="muted">{{ quiz.instructions|default:"Выберите правильные варианты ответа и отправьте попытку на проверку." }}</p>
         <div class="page-header__meta">
             <span>Курс: {{ quiz.course.title }}</span>
-            <span>Лимит времени: {{ quiz.time_limit_minutes }} мин.</span>
+            <span>Лимит времени: {{ effective_time_limit_minutes }} мин.</span>
             <span>Срок сдачи попытки: {{ deadline_at|date:"d.m.Y H:i" }}</span>
         </div>
     </div>
@@ -22,6 +22,11 @@
         </article>
     </div>
 </section>
+{% if has_personal_time_limit %}
+    <section class="inline-note">
+        Для этой попытки применены индивидуальные условия: увеличенный лимит времени уже учтен в сроке сдачи.
+    </section>
+{% endif %}
 
 <section class="inline-note autosave-note">
     <strong>Автосохранение:</strong>

@@ -146,6 +146,22 @@ SPECTACULAR_SETTINGS = {
             'description': 'Черновики, результат попытки и финальная отправка на проверку.',
         },
     ],
+    'ENUM_NAME_OVERRIDES': {
+        'AttemptStatusEnum': [
+            ('in_progress', 'В процессе'),
+            ('submitted', 'Завершена'),
+        ],
+        'EnrollmentStatusEnum': [
+            ('active', 'Активное обучение'),
+            ('completed', 'Курс завершен'),
+            ('archived', 'Архивная запись'),
+        ],
+        'AppealStatusEnum': [
+            ('pending', 'Ожидает решения'),
+            ('approved', 'Принята'),
+            ('rejected', 'Отклонена'),
+        ],
+    },
     'SWAGGER_UI_SETTINGS': {
         'deepLinking': True,
         'displayRequestDuration': True,

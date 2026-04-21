@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ page_title }} | EduTesting{% endblock %}
+
+{% block content %}
+<section class="panel panel-form">
+    <div class="section-heading">
+        <div class="section-kicker">Апелляция</div>
+        <h1>{{ page_title }}</h1>
+        <p>
+            Тест: {{ attempt.quiz.title }} •
+            Результат: {{ attempt.score_percent }}% •
+            Завершено: {{ attempt.submitted_at|date:"d.m.Y H:i" }}
+        </p>
+    </div>
+
+    <div class="info-banner">
+        Коротко опишите, почему результат стоит пересмотреть: например, спорный вопрос, неоднозначную формулировку или техническую проблему во время прохождения.
+    </div>
+
+    <form method="post" class="stacked-form">
+        {% csrf_token %}
+        {% for field in form %}
+            <div class="form-field">
+                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}
+                    <div class="form-error">{{ field.errors|striptags }}</div>
+                {% endif %}
+            </div>
+        {% endfor %}
+        <div class="button-row">
+            <button type="submit" class="button button-primary">Отправить апелляцию</button>
+            <a class="button button-secondary" href="{% url 'testing:attempt_result' attempt.pk %}">Назад к отчету</a>
+        </div>
+    </form>
+</section>
+{% endblock %}

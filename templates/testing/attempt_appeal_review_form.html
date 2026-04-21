@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ page_title }} | EduTesting{% endblock %}
+
+{% block content %}
+<section class="panel panel-form">
+    <div class="section-heading">
+        <div class="section-kicker">Апелляция</div>
+        <h1>{{ page_title }}</h1>
+        <p>
+            Студент: {{ attempt.student.get_full_name|default:attempt.student.username }} •
+            Тест: {{ attempt.quiz.title }} •
+            Результат: {{ attempt.score_percent }}%
+        </p>
+    </div>
+
+    <div class="info-banner">
+        <strong>Текст апелляции:</strong><br>
+        {{ appeal.message|linebreaksbr }}
+    </div>
+
+    <form method="post" class="stacked-form">
+        {% csrf_token %}
+        {% for field in form %}
+            <div class="form-field">
+                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}
+                    <div class="form-error">{{ field.errors|striptags }}</div>
+                {% endif %}
+            </div>
+        {% endfor %}
+        <div class="button-row">
+            <button type="submit" class="button button-primary">Сохранить решение</button>
+            <a class="button button-secondary" href="{% url 'testing:attempt_result' attempt.pk %}">Назад к отчету</a>
+        </div>
+    </form>
+</section>
+{% endblock %}

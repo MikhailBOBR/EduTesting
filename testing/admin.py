@@ -1,6 +1,19 @@
 from django.contrib import admin
 
-from .models import Announcement, Answer, Attempt, AttemptDraft, Choice, Course, Enrollment, Question, Quiz, UserNotification
+from .models import (
+    Announcement,
+    Answer,
+    Attempt,
+    AttemptAppeal,
+    AttemptDraft,
+    Choice,
+    Course,
+    Enrollment,
+    Question,
+    Quiz,
+    QuizAccessOverride,
+    UserNotification,
+)
 
 
 class ChoiceInline(admin.TabularInline):
@@ -81,3 +94,17 @@ class UserNotificationAdmin(admin.ModelAdmin):
     list_display = ('recipient', 'category', 'title', 'is_read', 'created_at')
     list_filter = ('category', 'is_read')
     search_fields = ('recipient__username', 'title', 'message')
+
+
+@admin.register(QuizAccessOverride)
+class QuizAccessOverrideAdmin(admin.ModelAdmin):
+    list_display = ('quiz', 'student', 'extra_time_minutes', 'extra_attempts', 'is_active')
+    list_filter = ('is_active', 'quiz__course')
+    search_fields = ('quiz__title', 'student__username', 'student__last_name')
+
+
+@admin.register(AttemptAppeal)
+class AttemptAppealAdmin(admin.ModelAdmin):
+    list_display = ('attempt', 'student', 'status', 'resolved_at', 'resolved_by')
+    list_filter = ('status', 'attempt__quiz__course')
+    search_fields = ('student__username', 'attempt__quiz__title', 'message', 'teacher_response')

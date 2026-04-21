@@ -1,7 +1,18 @@
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
-from .models import Announcement, Attempt, AttemptReview, Choice, Course, Question, Quiz
+from .models import (
+    Announcement,
+    AppealStatus,
+    Attempt,
+    AttemptAppeal,
+    AttemptReview,
+    Choice,
+    Course,
+    Question,
+    Quiz,
+    QuizAccessOverride,
+)
 
 
 class ApiAnnouncementSerializer(serializers.ModelSerializer):
@@ -201,6 +212,9 @@ class ApiQuizDetailSerializer(serializers.ModelSerializer):
     question_count = serializers.IntegerField(read_only=True)
     total_points = serializers.IntegerField(read_only=True)
     is_available = serializers.BooleanField(read_only=True)
+    effective_time_limit_minutes = serializers.SerializerMethodField()
+    effective_max_attempts = serializers.SerializerMethodField()
+    has_personal_override = serializers.SerializerMethodField()
     questions = ApiQuestionSerializer(many=True, read_only=True)
 
     class Meta:
@@ -219,6 +233,9 @@ class ApiQuizDetailSerializer(serializers.ModelSerializer):
             'question_count',
             'total_points',
             'is_available',
+            'effective_time_limit_minutes',
+            'effective_max_attempts',
+            'has_personal_override',
             'course',
             'questions',
         )
@@ -226,6 +243,25 @@ class ApiQuizDetailSerializer(serializers.ModelSerializer):
     @extend_schema_field(ApiCourseReferenceSerializer)
     def get_course(self, obj):
         return ApiCourseReferenceSerializer(obj.course).data
+
+    @extend_schema_field(serializers.IntegerField())
+    def get_effective_time_limit_minutes(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated and request.user.is_student:
+            return obj.get_effective_time_limit(request.user)
+        return obj.time_limit_minutes
+
+    @extend_schema_field(serializers.IntegerField())
+    def get_effective_max_attempts(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated and request.user.is_student:
+            return obj.get_effective_max_attempts(request.user)
+        return obj.max_attempts
+
+    @extend_schema_field(serializers.BooleanField())
+    def get_has_personal_override(self, obj):
+        request = self.context.get('request')
+        return bool(request and request.user.is_authenticated and obj.get_access_override(request.user))
 
 
 class ApiEnrollmentResponseSerializer(serializers.Serializer):
@@ -246,6 +282,27 @@ class ApiAttemptReviewSerializer(serializers.ModelSerializer):
         return obj.teacher.get_full_name() or obj.teacher.username
 
 
+class ApiAttemptAppealSerializer(serializers.ModelSerializer):
+    resolved_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = AttemptAppeal
+        fields = (
+            'id',
+            'status',
+            'message',
+            'teacher_response',
+            'resolved_at',
+            'resolved_by_name',
+        )
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_resolved_by_name(self, obj):
+        if obj.resolved_by_id is None:
+            return None
+        return obj.resolved_by.get_full_name() or obj.resolved_by.username
+
+
 class ApiAttemptSummarySerializer(serializers.ModelSerializer):
     quiz = ApiQuizReferenceSerializer(read_only=True)
     course = serializers.SerializerMethodField()
@@ -253,6 +310,7 @@ class ApiAttemptSummarySerializer(serializers.ModelSerializer):
     total_questions = serializers.IntegerField(read_only=True)
     total_points = serializers.IntegerField(read_only=True)
     has_review = serializers.SerializerMethodField()
+    time_limit_minutes = serializers.SerializerMethodField()
 
     class Meta:
         model = Attempt
@@ -261,6 +319,7 @@ class ApiAttemptSummarySerializer(serializers.ModelSerializer):
             'status',
             'started_at',
             'submitted_at',
+            'time_limit_minutes',
             'duration_seconds',
             'score_points',
             'score_percent',
@@ -280,6 +339,10 @@ class ApiAttemptSummarySerializer(serializers.ModelSerializer):
     @extend_schema_field(serializers.BooleanField())
     def get_has_review(self, obj):
         return hasattr(obj, 'review')
+
+    @extend_schema_field(serializers.IntegerField())
+    def get_time_limit_minutes(self, obj):
+        return obj.effective_time_limit_minutes
 
 
 class ApiAttemptAnswerSerializer(serializers.Serializer):
@@ -331,6 +394,7 @@ class ApiAttemptDetailSerializer(serializers.Serializer):
     topic_insights = serializers.ListField(child=serializers.DictField(), allow_empty=True)
     recommendations = serializers.ListField(child=serializers.CharField(), allow_empty=True)
     review = ApiAttemptReviewSerializer(allow_null=True)
+    appeal = ApiAttemptAppealSerializer(allow_null=True)
     show_answer_key = serializers.BooleanField()
     comparison = ApiAttemptComparisonSerializer(allow_null=True)
 
@@ -364,6 +428,48 @@ class ApiAttemptDraftSerializer(serializers.Serializer):
 
 class ApiAttemptDraftSaveRequestSerializer(ApiAttemptSubmitRequestSerializer):
     last_question_id = serializers.IntegerField(required=False, allow_null=True)
+
+
+class ApiAttemptAppealRequestSerializer(serializers.Serializer):
+    message = serializers.CharField()
+
+
+class ApiAttemptAppealReviewRequestSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(choices=AppealStatus.choices)
+    teacher_response = serializers.CharField(required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        if attrs['status'] in {AppealStatus.APPROVED, AppealStatus.REJECTED} and not attrs.get('teacher_response', '').strip():
+            raise serializers.ValidationError({'teacher_response': 'Добавьте комментарий преподавателя.'})
+        return attrs
+
+
+class ApiQuizAccessOverrideSerializer(serializers.ModelSerializer):
+    student_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = QuizAccessOverride
+        fields = (
+            'id',
+            'student',
+            'student_name',
+            'extra_time_minutes',
+            'extra_attempts',
+            'notes',
+            'is_active',
+        )
+
+    @extend_schema_field(serializers.CharField())
+    def get_student_name(self, obj):
+        return obj.student.get_full_name() or obj.student.username
+
+
+class ApiQuizAccessOverrideRequestSerializer(serializers.Serializer):
+    student_id = serializers.IntegerField(min_value=1)
+    extra_time_minutes = serializers.IntegerField(min_value=0, required=False, default=0)
+    extra_attempts = serializers.IntegerField(min_value=0, required=False, default=0)
+    notes = serializers.CharField(required=False, allow_blank=True, default='')
+    is_active = serializers.BooleanField(required=False, default=True)
 
 
 class ApiQuizAttemptListSerializer(serializers.ModelSerializer):

@@ -41,8 +41,8 @@
             <span class="metric__label">Средний результат</span>
         </article>
         <article class="metric">
-            <span class="metric__value">{{ recent_announcements|length }}</span>
-            <span class="metric__label">Последних объявлений</span>
+            <span class="metric__value">{{ summary.pending_appeals }}</span>
+            <span class="metric__label">Открытых апелляций</span>
         </article>
     </section>
 
@@ -115,6 +115,30 @@
 
     <section class="panel">
         <div class="panel__header">
+            <div class="section-kicker">Апелляции</div>
+            <h2>Обращения студентов</h2>
+            <p>Новые запросы на пересмотр результатов по вашим тестам.</p>
+        </div>
+        <div class="card-list">
+            {% for appeal in pending_appeals %}
+                <article class="card">
+                    <div class="tag-row">
+                        <span class="badge badge-warning">{{ appeal.get_status_display }}</span>
+                        <span class="meta-chip">{{ appeal.created_at|date:"d.m.Y H:i" }}</span>
+                    </div>
+                    <h3>{{ appeal.student.get_full_name|default:appeal.student.username }}</h3>
+                    <p class="muted">{{ appeal.attempt.quiz.title }} • результат {{ appeal.attempt.score_percent }}%</p>
+                    <p class="muted">{{ appeal.message|truncatechars:180 }}</p>
+                    <a href="{% url 'testing:attempt_appeal_review' appeal.attempt.pk %}">Открыть апелляцию</a>
+                </article>
+            {% empty %}
+                <div class="empty-state">Новых апелляций пока нет.</div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="panel">
+        <div class="panel__header">
             <div class="section-kicker">Объявления</div>
             <h2>Последние публикации по вашим курсам</h2>
         </div>
@@ -154,8 +178,8 @@
             <span class="metric__label">Ожидающих тестов</span>
         </article>
         <article class="metric">
-            <span class="metric__value">{{ recent_announcements|length }}</span>
-            <span class="metric__label">Новых объявлений</span>
+            <span class="metric__value">{{ summary.open_appeals }}</span>
+            <span class="metric__label">Открытых апелляций</span>
         </article>
     </section>
 
@@ -250,6 +274,30 @@
 
     <section class="panel">
         <div class="panel__header">
+            <div class="section-kicker">Апелляции</div>
+            <h2>Ваши обращения по попыткам</h2>
+        </div>
+        <div class="card-list">
+            {% for appeal in open_appeals %}
+                <article class="card">
+                    <div class="tag-row">
+                        <span class="badge{% if appeal.status == 'pending' %} badge-warning{% elif appeal.status == 'approved' %} badge-success{% else %} badge-danger{% endif %}">
+                            {{ appeal.get_status_display }}
+                        </span>
+                        <span class="meta-chip">{{ appeal.created_at|date:"d.m.Y H:i" }}</span>
+                    </div>
+                    <h3>{{ appeal.attempt.quiz.title }}</h3>
+                    <p class="muted">{{ appeal.message|truncatechars:180 }}</p>
+                    <a href="{% url 'testing:attempt_result' appeal.attempt.pk %}">Открыть попытку</a>
+                </article>
+            {% empty %}
+                <div class="empty-state">Апелляции по попыткам пока не подавались.</div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="panel">
+        <div class="panel__header">
             <div class="section-kicker">История</div>
             <h2>Последние завершенные попытки</h2>
         </div>
@@ -275,7 +323,7 @@
     <div class="panel__header">
         <div class="section-kicker">Уведомления</div>
         <h2>Последние события</h2>
-        <p>Новые объявления, попытки, комментарии и изменения по тестам.</p>
+        <p>Новые объявления, попытки, комментарии, апелляции и изменения по тестам.</p>
     </div>
     <div class="button-row">
         <a class="button button-secondary" href="{% url 'testing:notifications' %}">Открыть все уведомления</a>

@@ -14,6 +14,40 @@ info:
   contact:
     name: Кашпирев М.Д.
 paths:
+  /api/appeals/{id}/review/:
+    post:
+      operationId: appeals_review_create
+      summary: Рассмотрение апелляции преподавателем
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - appeals
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApiAttemptAppealReviewRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ApiAttemptAppealReviewRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ApiAttemptAppealReviewRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAttemptAppeal'
+          description: ''
   /api/attempts/{id}/:
     get:
       operationId: attempts_retrieve
@@ -35,6 +69,46 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiAttemptDetail'
+          description: ''
+  /api/attempts/{id}/appeal/:
+    post:
+      operationId: attempts_appeal_create
+      summary: Подача апелляции по попытке
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - attempts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApiAttemptAppealRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ApiAttemptAppealRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ApiAttemptAppealRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAttemptAppeal'
+          description: ''
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAttemptAppeal'
           description: ''
   /api/attempts/{id}/draft/:
     post:
@@ -329,6 +403,69 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiQuizAttemptsResponse'
+          description: ''
+  /api/quizzes/{id}/overrides/:
+    get:
+      operationId: quizzes_overrides_list
+      summary: Список индивидуальных условий по тесту
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - quizzes
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ApiQuizAccessOverride'
+          description: ''
+    post:
+      operationId: quizzes_overrides_create
+      summary: Создание или обновление индивидуальных условий
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - quizzes
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApiQuizAccessOverrideRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ApiQuizAccessOverrideRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ApiQuizAccessOverrideRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiQuizAccessOverride'
+          description: ''
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiQuizAccessOverride'
           description: ''
   /api/quizzes/{id}/start/:
     post:
@@ -637,6 +774,51 @@ components:
       - selected_choice_ids
       - selected_choices
       - topic
+    ApiAttemptAppeal:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/AppealStatusEnum'
+          title: Статус апелляции
+        message:
+          type: string
+          title: Текст апелляции
+        teacher_response:
+          type: string
+          title: Ответ преподавателя
+        resolved_at:
+          type: string
+          format: date-time
+          nullable: true
+          title: Рассмотрено в
+        resolved_by_name:
+          type: string
+          nullable: true
+          readOnly: true
+      required:
+      - id
+      - message
+      - resolved_by_name
+    ApiAttemptAppealRequest:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+      - message
+    ApiAttemptAppealReviewRequest:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/AppealStatusEnum'
+        teacher_response:
+          type: string
+      required:
+      - status
     ApiAttemptComparison:
       type: object
       properties:
@@ -718,6 +900,10 @@ components:
           allOf:
           - $ref: '#/components/schemas/ApiAttemptReview'
           nullable: true
+        appeal:
+          allOf:
+          - $ref: '#/components/schemas/ApiAttemptAppeal'
+          nullable: true
         show_answer_key:
           type: boolean
         comparison:
@@ -726,6 +912,7 @@ components:
           nullable: true
       required:
       - answers
+      - appeal
       - attempt
       - comparison
       - recommendations
@@ -811,7 +998,7 @@ components:
           readOnly: true
         status:
           allOf:
-          - $ref: '#/components/schemas/StatusEnum'
+          - $ref: '#/components/schemas/AttemptStatusEnum'
           title: Статус
         started_at:
           type: string
@@ -823,6 +1010,9 @@ components:
           format: date-time
           nullable: true
           title: Завершение
+        time_limit_minutes:
+          type: integer
+          readOnly: true
         duration_seconds:
           type: integer
           title: Длительность, сек.
@@ -862,6 +1052,7 @@ components:
       - is_passed
       - quiz
       - started_at
+      - time_limit_minutes
       - total_points
       - total_questions
     ApiAttentionStudent:
@@ -1195,6 +1386,56 @@ components:
       - choices
       - id
       - text
+    ApiQuizAccessOverride:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        student:
+          type: integer
+          title: Студент
+        student_name:
+          type: string
+          readOnly: true
+        extra_time_minutes:
+          type: integer
+          title: Дополнительное время, мин.
+        extra_attempts:
+          type: integer
+          title: Дополнительные попытки
+        notes:
+          type: string
+          title: Комментарий преподавателя
+        is_active:
+          type: boolean
+          title: Активно
+      required:
+      - id
+      - student
+      - student_name
+    ApiQuizAccessOverrideRequest:
+      type: object
+      properties:
+        student_id:
+          type: integer
+          minimum: 1
+        extra_time_minutes:
+          type: integer
+          minimum: 0
+          default: 0
+        extra_attempts:
+          type: integer
+          minimum: 0
+          default: 0
+        notes:
+          type: string
+          default: ''
+        is_active:
+          type: boolean
+          default: true
+      required:
+      - student_id
     ApiQuizAttemptList:
       type: object
       properties:
@@ -1288,6 +1529,15 @@ components:
         is_available:
           type: boolean
           readOnly: true
+        effective_time_limit_minutes:
+          type: integer
+          readOnly: true
+        effective_max_attempts:
+          type: integer
+          readOnly: true
+        has_personal_override:
+          type: boolean
+          readOnly: true
         course:
           allOf:
           - $ref: '#/components/schemas/ApiCourseReference'
@@ -1299,6 +1549,9 @@ components:
           readOnly: true
       required:
       - course
+      - effective_max_attempts
+      - effective_time_limit_minutes
+      - has_personal_override
       - id
       - is_available
       - question_count
@@ -1422,6 +1675,24 @@ components:
       - id
       - role
       - username
+    AppealStatusEnum:
+      enum:
+      - pending
+      - approved
+      - rejected
+      type: string
+      description: |-
+        * `pending` - Ожидает решения
+        * `approved` - Принята
+        * `rejected` - Отклонена
+    AttemptStatusEnum:
+      enum:
+      - in_progress
+      - submitted
+      type: string
+      description: |-
+        * `in_progress` - В процессе
+        * `submitted` - Завершена
     DifficultyEnum:
       enum:
       - basic
@@ -1448,14 +1719,6 @@ components:
       description: |-
         * `autumn` - Осенний семестр
         * `spring` - Весенний семестр
-    StatusEnum:
-      enum:
-      - in_progress
-      - submitted
-      type: string
-      description: |-
-        * `in_progress` - В процессе
-        * `submitted` - Завершена
   securitySchemes:
     cookieAuth:
       type: apiKey

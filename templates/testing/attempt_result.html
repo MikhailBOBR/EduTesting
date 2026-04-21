@@ -140,6 +140,48 @@
     </section>
 {% endif %}
 
+{% if can_appeal or attempt_appeal or can_manage_appeal %}
+    <section class="panel">
+        <div class="panel__header">
+            <div class="section-kicker">Апелляция</div>
+            <h2>Пересмотр результата</h2>
+        </div>
+        {% if attempt_appeal %}
+            <div class="card-list">
+                <article class="card">
+                    <div class="tag-row">
+                        <span class="badge{% if attempt_appeal.status == 'pending' %} badge-warning{% elif attempt_appeal.status == 'approved' %} badge-success{% else %} badge-danger{% endif %}">
+                            {{ attempt_appeal.get_status_display }}
+                        </span>
+                        <span class="meta-chip">{{ attempt_appeal.created_at|date:"d.m.Y H:i" }}</span>
+                    </div>
+                    <h3>Обоснование студента</h3>
+                    <p>{{ attempt_appeal.message|linebreaksbr }}</p>
+                    {% if attempt_appeal.teacher_response %}
+                        <div class="info-banner">
+                            <strong>Ответ преподавателя:</strong><br>
+                            {{ attempt_appeal.teacher_response|linebreaksbr }}
+                        </div>
+                    {% endif %}
+                </article>
+            </div>
+            <div class="button-row">
+                {% if can_appeal and attempt_appeal.status == 'pending' %}
+                    <a class="button button-secondary" href="{% url 'testing:attempt_appeal' attempt.pk %}">Изменить апелляцию</a>
+                {% endif %}
+                {% if can_manage_appeal %}
+                    <a class="button button-primary" href="{% url 'testing:attempt_appeal_review' attempt.pk %}">Рассмотреть апелляцию</a>
+                {% endif %}
+            </div>
+        {% elif can_appeal %}
+            <p class="muted">Если результат нужно пересмотреть, можно отправить преподавателю короткое обращение прямо из системы.</p>
+            <div class="button-row">
+                <a class="button button-primary" href="{% url 'testing:attempt_appeal' attempt.pk %}">Подать апелляцию</a>
+            </div>
+        {% endif %}
+    </section>
+{% endif %}
+
 {% if topic_insights.topic_rows %}
     <section class="grid-2">
         <article class="panel">

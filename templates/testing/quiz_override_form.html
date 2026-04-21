@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ page_title }} | EduTesting{% endblock %}
+
+{% block content %}
+<section class="panel panel-form">
+    <div class="section-heading">
+        <div class="section-kicker">Индивидуальные условия</div>
+        <h1>{{ page_title }}</h1>
+        <p>Курс: {{ quiz.course.title }} • Тест: {{ quiz.title }}</p>
+    </div>
+
+    <div class="info-banner">
+        Используйте эту форму, если конкретному студенту нужно добавить время или увеличить число попыток без изменения общих настроек теста.
+    </div>
+
+    <form method="post" class="stacked-form">
+        {% csrf_token %}
+        {% for field in form %}
+            <div class="form-field">
+                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}
+                    <div class="form-error">{{ field.errors|striptags }}</div>
+                {% endif %}
+            </div>
+        {% endfor %}
+        <div class="button-row">
+            <button type="submit" class="button button-primary">Сохранить условия</button>
+            <a class="button button-secondary" href="{% url 'testing:quiz_overrides' quiz.pk %}">Назад к списку</a>
+        </div>
+    </form>
+</section>
+{% endblock %}

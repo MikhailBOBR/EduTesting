@@ -6,7 +6,9 @@ from django.utils import timezone
 from accounts.models import User, UserRole
 from testing.models import (
     Announcement,
+    AppealStatus,
     Attempt,
+    AttemptAppeal,
     AttemptReview,
     AttemptStatus,
     Choice,
@@ -16,6 +18,7 @@ from testing.models import (
     Question,
     QuestionType,
     Quiz,
+    QuizAccessOverride,
     SemesterChoices,
 )
 from testing.services import submit_attempt
@@ -415,19 +418,16 @@ class Command(BaseCommand):
         self._seed_attempts(course_specs, courses, students, now)
         self._seed_reviews(courses, now)
         self._seed_in_progress(course_specs, courses, students, now)
+        self._seed_overrides(courses, students)
+        self._seed_appeals(students, now)
 
         quizzes_count = sum(len(spec['quizzes']) for spec in course_specs)
         questions_count = sum(len(quiz['questions']) for spec in course_specs for quiz in spec['quizzes'])
         self.stdout.write(
-            f'Итоговое наполнение: {len(teachers)} преподавателей, {len(students)} студентов, '
-            f'{len(course_specs)} курсов, {quizzes_count} тестов и {questions_count} вопросов.'
-        )
-        self.stdout.write('Основные логины: teacher_demo / TeacherDemo123!, student_demo / StudentDemo123!')
-        return
-
-        self.stdout.write(
             self.style.SUCCESS(
-                'Расширенные демо-данные готовы: 3 преподавателя, 12 студентов, 4 курса, 8 тестов и заполненная аналитика.'
+                f'Расширенные демо-данные готовы: {len(teachers)} преподавателей, {len(students)} студентов, '
+                f'{len(course_specs)} курсов, {quizzes_count} тестов, {questions_count} вопросов, '
+                'индивидуальные условия и апелляции.'
             )
         )
         self.stdout.write('Основные логины: teacher_demo / TeacherDemo123!, student_demo / StudentDemo123!')
@@ -553,6 +553,80 @@ class Command(BaseCommand):
                     continue
                 attempt, _ = Attempt.objects.get_or_create(quiz=quiz, student=student, status=AttemptStatus.IN_PROGRESS)
                 Attempt.objects.filter(pk=attempt.pk).update(started_at=now - timedelta(minutes=min(12, quiz.time_limit_minutes - 1)))
+
+    def _seed_overrides(self, courses, students):
+        demo_course = courses.get('РћСЃРЅРѕРІС‹ РІРµР±-СЂР°Р·СЂР°Р±РѕС‚РєРё')
+        if demo_course is None:
+            return
+
+        demo_quiz = demo_course.quizzes.filter(is_published=True).order_by('title').first()
+        if demo_quiz is None:
+            return
+
+        QuizAccessOverride.objects.update_or_create(
+            quiz=demo_quiz,
+            student=students['student_demo'],
+            defaults={
+                'extra_time_minutes': 15,
+                'extra_attempts': 1,
+                'notes': 'Р”РµРјРѕРЅСЃС‚СЂР°С†РёРѕРЅРЅРѕРµ РёРЅРґРёРІРёРґСѓР°Р»СЊРЅРѕРµ СѓСЃР»РѕРІРёРµ РґР»СЏ РїРѕРєР°Р·Р° РЅР° Р·Р°С‰РёС‚Рµ.',
+                'is_active': True,
+            },
+        )
+        QuizAccessOverride.objects.update_or_create(
+            quiz=demo_quiz,
+            student=students['student_01'],
+            defaults={
+                'extra_time_minutes': 10,
+                'extra_attempts': 0,
+                'notes': 'Р”РѕРїРѕР»РЅРёС‚РµР»СЊРЅРѕРµ РІСЂРµРјСЏ РґР»СЏ РїРѕРєР°Р·Р° РёРЅРґРёРІРёРґСѓР°Р»СЊРЅРѕР№ РЅР°СЃС‚СЂРѕР№РєРё.',
+                'is_active': True,
+            },
+        )
+
+    def _seed_appeals(self, students, now):
+        demo_student = students.get('student_demo')
+        if demo_student is None:
+            return
+
+        pending_attempt = (
+            Attempt.objects.filter(student=demo_student, status=AttemptStatus.SUBMITTED)
+            .select_related('quiz__course__owner', 'student')
+            .order_by('-submitted_at')
+            .first()
+        )
+        if pending_attempt is not None:
+            AttemptAppeal.objects.update_or_create(
+                attempt=pending_attempt,
+                defaults={
+                    'student': pending_attempt.student,
+                    'status': AppealStatus.PENDING,
+                    'message': 'РџСЂРѕС€Сѓ РїРµСЂРµСЃРјРѕС‚СЂРµС‚СЊ РѕС†РµРЅРєСѓ РїРѕ РІРѕРїСЂРѕСЃСѓ, РіРґРµ РѕС‚РІРµС‚ С‡Р°СЃС‚РёС‡РЅРѕ СЃРѕРІРїР°РґР°РµС‚ СЃ СЌС‚Р°Р»РѕРЅРѕРј.',
+                    'teacher_response': '',
+                    'resolved_by': None,
+                    'resolved_at': None,
+                },
+            )
+
+        resolved_attempt = (
+            Attempt.objects.filter(status=AttemptStatus.SUBMITTED)
+            .exclude(student=demo_student)
+            .select_related('quiz__course__owner', 'student')
+            .order_by('-submitted_at')
+            .first()
+        )
+        if resolved_attempt is not None:
+            AttemptAppeal.objects.update_or_create(
+                attempt=resolved_attempt,
+                defaults={
+                    'student': resolved_attempt.student,
+                    'status': AppealStatus.REJECTED,
+                    'message': 'РџСЂРѕС€Сѓ РїРµСЂРµСЃРјРѕС‚СЂРµС‚СЊ РѕРґРёРЅ РёР· РІРѕРїСЂРѕСЃРѕРІ РїРѕ С‚РµРјРµ С‚РµСЃС‚Р°.',
+                    'teacher_response': 'Р РµР·СѓР»СЊС‚Р°С‚ РѕСЃС‚Р°РІР»РµРЅ Р±РµР· РёР·РјРµРЅРµРЅРёР№: РІ РєР»СЋС‡Рµ СѓС‡РёС‚С‹РІР°РµС‚СЃСЏ РїРѕР»РЅРѕРµ СЃРѕРІРїР°РґРµРЅРёРµ РѕС‚РІРµС‚Р°.',
+                    'resolved_by': resolved_attempt.quiz.course.owner,
+                    'resolved_at': (resolved_attempt.submitted_at or now) + timedelta(hours=8),
+                },
+            )
 
     def _seed_reviews(self, courses, now):
         feedback_map = {

@@ -10,15 +10,16 @@
         <p class="muted">{{ quiz.description|default:"Описание теста не заполнено." }}</p>
         <div class="page-header__meta">
             <span>Курс: <a href="{% url 'testing:course_detail' quiz.course.pk %}">{{ quiz.course.title }}</a></span>
-            <span>Лимит времени: {{ quiz.time_limit_minutes }} мин.</span>
+            <span>Лимит времени: {{ effective_time_limit_minutes }} мин.</span>
             <span>Проходной балл: {{ quiz.passing_score }}%</span>
-            <span>Макс. попыток: {{ quiz.max_attempts }}</span>
+            <span>Макс. попыток: {{ effective_max_attempts }}</span>
         </div>
         <div class="button-row">
             {% if can_manage %}
                 <a class="button button-primary" href="{% url 'testing:quiz_edit' quiz.pk %}">Редактировать тест</a>
                 <a class="button button-secondary" href="{% url 'testing:question_create' quiz.pk %}">Добавить вопрос</a>
                 <a class="button button-secondary" href="{% url 'testing:quiz_attempts' quiz.pk %}">Попытки студентов</a>
+                <a class="button button-secondary" href="{% url 'testing:quiz_overrides' quiz.pk %}">Индивидуальные условия</a>
             {% elif request.user.is_authenticated and request.user.is_student %}
                 {% if in_progress_attempt %}
                     <a class="button button-primary" href="{% url 'testing:attempt_detail' in_progress_attempt.pk %}">Продолжить попытку</a>
@@ -86,6 +87,17 @@
     </section>
 {% endif %}
 
+{% if can_manage and quiz_metrics.active_overrides %}
+    <section class="info-banner">
+        Для этого теста уже настроено {{ quiz_metrics.active_overrides }} индивидуальных условий для студентов.
+    </section>
+{% elif personal_override %}
+    <section class="info-banner">
+        Для вас действуют персональные условия прохождения:
+        +{{ personal_override.extra_time_minutes }} мин. и +{{ personal_override.extra_attempts }} попытк(и).
+    </section>
+{% endif %}
+
 <section class="grid-2">
     <article class="panel">
         <div class="panel__header">
@@ -111,6 +123,16 @@
                         <th>Показ правильных ответов</th>
                         <td>{{ quiz.show_correct_answers|yesno:"Да,Нет" }}</td>
                     </tr>
+                    {% if personal_override %}
+                        <tr>
+                            <th>Индивидуальные условия</th>
+                            <td>
+                                Доп. время: {{ personal_override.extra_time_minutes }} мин.,
+                                доп. попытки: {{ personal_override.extra_attempts }}.
+                                {% if personal_override.notes %}<br>{{ personal_override.notes }}{% endif %}
+                            </td>
+                        </tr>
+                    {% endif %}
                 </tbody>
             </table>
         </div>

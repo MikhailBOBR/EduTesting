@@ -17,10 +17,12 @@ from .analytics import (
     build_course_topic_diagnostics,
     build_student_topic_diagnostics,
 )
-from .forms import AttemptForm, JoinCourseForm, QuizForm
+from .forms import AttemptAppealReviewForm, AttemptForm, JoinCourseForm, QuizForm
 from .models import (
     Announcement,
+    AppealStatus,
     Attempt,
+    AttemptAppeal,
     AttemptDraft,
     AttemptReview,
     AttemptStatus,
@@ -30,6 +32,7 @@ from .models import (
     Question,
     QuestionType,
     Quiz,
+    QuizAccessOverride,
     SemesterChoices,
     UserNotification,
 )
@@ -246,6 +249,15 @@ class TestingBaseMixin:
         attempt.refresh_from_db()
         return attempt
 
+    def create_quiz_override(self, student=None, quiz=None, extra_time_minutes=10, extra_attempts=1, is_active=True):
+        return QuizAccessOverride.objects.create(
+            quiz=quiz or self.quiz,
+            student=student or self.student,
+            extra_time_minutes=extra_time_minutes,
+            extra_attempts=extra_attempts,
+            is_active=is_active,
+        )
+
 
 class ModelAndFormTests(TestingBaseMixin, TestCase):
     def test_course_generates_access_code_on_save(self):
@@ -321,6 +333,23 @@ class ModelAndFormTests(TestingBaseMixin, TestCase):
         Attempt.objects.create(quiz=self.quiz, student=self.student, status=AttemptStatus.IN_PROGRESS)
 
         self.assertEqual(self.quiz.remaining_attempts(self.student), 1)
+
+    def test_quiz_override_changes_effective_limits_for_student(self):
+        self.create_quiz_override(student=self.student, extra_time_minutes=15, extra_attempts=2)
+
+        self.assertEqual(self.quiz.get_effective_time_limit(self.student), 35)
+        self.assertEqual(self.quiz.get_effective_max_attempts(self.student), 4)
+
+    def test_attempt_appeal_review_form_requires_teacher_response_for_final_status(self):
+        form = AttemptAppealReviewForm(
+            data={
+                'status': AppealStatus.REJECTED,
+                'teacher_response': '',
+            }
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn('teacher_response', form.errors)
 
     def test_unanswered_configuration_count_counts_questions_without_correct_choice(self):
         question = Question.objects.create(
@@ -635,6 +664,36 @@ class CourseAndDashboardViewTests(TestingBaseMixin, TestCase):
         notification.refresh_from_db()
         self.assertTrue(notification.is_read)
 
+    def test_teacher_dashboard_shows_pending_appeals(self):
+        attempt = self.create_submitted_attempt(student=self.student)
+        AttemptAppeal.objects.create(
+            attempt=attempt,
+            student=self.student,
+            message='Нужно пересмотреть второй вопрос.',
+        )
+        self.client.force_login(self.teacher)
+
+        response = self.client.get(reverse('testing:dashboard'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['summary']['pending_appeals'], 1)
+        self.assertEqual(response.context['pending_appeals'][0].attempt, attempt)
+
+    def test_student_dashboard_shows_open_appeals(self):
+        attempt = self.create_submitted_attempt(student=self.student)
+        AttemptAppeal.objects.create(
+            attempt=attempt,
+            student=self.student,
+            message='Прошу проверить формулировку вопроса.',
+        )
+        self.client.force_login(self.student)
+
+        response = self.client.get(reverse('testing:dashboard'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['summary']['open_appeals'], 1)
+        self.assertEqual(response.context['open_appeals'][0].attempt, attempt)
+
 
 class StudentFlowTests(TestingBaseMixin, TestCase):
     def test_student_can_start_and_submit_quiz(self):
@@ -814,6 +873,27 @@ class StudentFlowTests(TestingBaseMixin, TestCase):
         self.assertEqual(payload['answered_questions_count'], 2)
         self.assertTrue(AttemptDraft.objects.filter(attempt=attempt).exists())
 
+    def test_quiz_detail_shows_personalized_limits_for_student(self):
+        self.create_quiz_override(student=self.student, extra_time_minutes=15, extra_attempts=2)
+        self.client.force_login(self.student)
+
+        response = self.client.get(reverse('testing:quiz_detail', args=[self.quiz.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['effective_time_limit_minutes'], 35)
+        self.assertEqual(response.context['effective_max_attempts'], 4)
+        self.assertIsNotNone(response.context['personal_override'])
+
+    def test_started_attempt_uses_override_time_limit_snapshot(self):
+        self.create_quiz_override(student=self.student, extra_time_minutes=15, extra_attempts=1)
+        self.client.force_login(self.student)
+
+        response = self.client.post(reverse('testing:quiz_start', args=[self.quiz.pk]))
+
+        attempt = Attempt.objects.get(quiz=self.quiz, student=self.student, status=AttemptStatus.IN_PROGRESS)
+        self.assertRedirects(response, reverse('testing:attempt_detail', args=[attempt.pk]))
+        self.assertEqual(attempt.time_limit_minutes_snapshot, 35)
+
     def test_attempt_detail_restores_saved_draft_answers(self):
         attempt = Attempt.objects.create(quiz=self.quiz, student=self.student)
         save_attempt_draft(attempt, self.partial_answers(), last_question_id=self.question_multi.id)
@@ -881,6 +961,26 @@ class StudentFlowTests(TestingBaseMixin, TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Нужно повторить тему ORM')
+
+    def test_student_can_submit_attempt_appeal(self):
+        attempt = self.create_submitted_attempt(student=self.student)
+        self.client.force_login(self.student)
+
+        response = self.client.post(
+            reverse('testing:attempt_appeal', args=[attempt.pk]),
+            {'message': 'Прошу пересмотреть оценку за вопрос по ORM.'},
+        )
+
+        self.assertRedirects(response, reverse('testing:attempt_result', args=[attempt.pk]))
+        appeal = AttemptAppeal.objects.get(attempt=attempt)
+        self.assertEqual(appeal.status, AppealStatus.PENDING)
+        self.assertTrue(
+            UserNotification.objects.filter(
+                recipient=self.teacher,
+                category='appeal',
+                attempt=attempt,
+            ).exists()
+        )
 
 
 class TeacherManagementTests(TestingBaseMixin, TestCase):
@@ -1194,6 +1294,52 @@ class ApiTests(TestingBaseMixin, TestCase):
         payload = response.json()
         self.assertEqual(payload['comparison']['score_delta'], 60)
         self.assertEqual(payload['comparison']['improved_topics'][0]['topic'], 'ORM')
+
+    def test_api_teacher_can_create_quiz_override(self):
+        response = self.client.post(
+            reverse('testing_api:quiz_overrides', args=[self.quiz.pk]),
+            {
+                'student_id': self.student.id,
+                'extra_time_minutes': 15,
+                'extra_attempts': 2,
+                'notes': 'Дополнительные условия для демонстрации.',
+                'is_active': True,
+            },
+            content_type='application/json',
+            **self.auth_headers(self.teacher),
+        )
+
+        self.assertEqual(response.status_code, 201)
+        payload = response.json()
+        self.assertEqual(payload['extra_time_minutes'], 15)
+        self.assertTrue(QuizAccessOverride.objects.filter(quiz=self.quiz, student=self.student).exists())
+
+    def test_api_student_can_submit_appeal_and_teacher_can_review_it(self):
+        attempt = self.create_submitted_attempt(student=self.student)
+
+        appeal_response = self.client.post(
+            reverse('testing_api:attempt_appeal', args=[attempt.pk]),
+            {'message': 'Прошу пересмотреть вопрос по ORM.'},
+            content_type='application/json',
+            **self.auth_headers(self.student),
+        )
+        self.assertEqual(appeal_response.status_code, 201)
+        appeal_id = appeal_response.json()['id']
+
+        review_response = self.client.post(
+            reverse('testing_api:attempt_appeal_review', args=[appeal_id]),
+            {
+                'status': AppealStatus.REJECTED,
+                'teacher_response': 'Формулировка корректна, результат оставлен без изменений.',
+            },
+            content_type='application/json',
+            **self.auth_headers(self.teacher),
+        )
+
+        self.assertEqual(review_response.status_code, 200)
+        payload = review_response.json()
+        self.assertEqual(payload['status'], AppealStatus.REJECTED)
+        self.assertIn('результат', payload['teacher_response'])
 
     def test_api_attempt_detail_hides_answer_key_for_student_when_disabled(self):
         attempt = self.create_submitted_attempt(student=self.student, quiz=self.hidden_quiz)

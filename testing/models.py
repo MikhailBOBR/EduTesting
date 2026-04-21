@@ -217,12 +217,65 @@ class Quiz(TimeStampedModel):
                 count += 1
         return count
 
+    def get_access_override(self, user):
+        user_id = getattr(user, 'id', None)
+        if not user_id:
+            return None
+        return self.access_overrides.filter(student_id=user_id, is_active=True).first()
+
+    def get_effective_time_limit(self, user):
+        override = self.get_access_override(user)
+        return self.time_limit_minutes + (override.extra_time_minutes if override else 0)
+
+    def get_effective_max_attempts(self, user):
+        override = self.get_access_override(user)
+        return self.max_attempts + (override.extra_attempts if override else 0)
+
     def remaining_attempts(self, user):
+        user_id = getattr(user, 'id', None)
+        if not user_id:
+            return self.max_attempts
         completed_attempts = self.attempts.filter(
             student=user,
             status=AttemptStatus.SUBMITTED,
         ).count()
-        return max(self.max_attempts - completed_attempts, 0)
+        return max(self.get_effective_max_attempts(user) - completed_attempts, 0)
+
+
+class QuizAccessOverride(TimeStampedModel):
+    quiz = models.ForeignKey(
+        Quiz,
+        on_delete=models.CASCADE,
+        related_name='access_overrides',
+        verbose_name='Тест',
+    )
+    student = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='quiz_access_overrides',
+        verbose_name='Студент',
+    )
+    extra_time_minutes = models.PositiveIntegerField('Дополнительное время, мин.', default=0)
+    extra_attempts = models.PositiveIntegerField('Дополнительные попытки', default=0)
+    notes = models.TextField('Комментарий преподавателя', blank=True)
+    is_active = models.BooleanField('Активно', default=True)
+
+    class Meta:
+        ordering = ('student__last_name', 'student__first_name', 'student__username')
+        verbose_name = 'Индивидуальные условия'
+        verbose_name_plural = 'Индивидуальные условия'
+        constraints = [
+            models.UniqueConstraint(fields=('quiz', 'student'), name='unique_quiz_access_override_per_student'),
+        ]
+
+    def __str__(self):
+        return f'{self.quiz.title} / {self.student}'
+
+    def clean(self):
+        if not self.quiz_id or not self.student_id:
+            return
+        if self.student_id and not Enrollment.objects.filter(course=self.quiz.course, student_id=self.student_id, status=EnrollmentStatus.ACTIVE).exists():
+            raise ValidationError('Индивидуальные условия можно выдавать только студенту, записанному на курс.')
 
 
 class QuestionType(models.TextChoices):
@@ -330,6 +383,7 @@ class Attempt(TimeStampedModel):
     )
     started_at = models.DateTimeField('Начало', auto_now_add=True)
     submitted_at = models.DateTimeField('Завершение', null=True, blank=True)
+    time_limit_minutes_snapshot = models.PositiveIntegerField('Лимит времени для попытки, мин.', default=0)
     duration_seconds = models.PositiveIntegerField('Длительность, сек.', default=0)
     score_points = models.PositiveIntegerField('Набрано баллов', default=0)
     score_percent = models.PositiveIntegerField('Результат, %', default=0)
@@ -364,7 +418,11 @@ class Attempt(TimeStampedModel):
 
     @property
     def deadline_at(self):
-        return self.started_at + timedelta(minutes=self.quiz.time_limit_minutes)
+        return self.started_at + timedelta(minutes=self.effective_time_limit_minutes)
+
+    @property
+    def effective_time_limit_minutes(self):
+        return self.time_limit_minutes_snapshot or self.quiz.time_limit_minutes
 
     @property
     def duration_minutes(self):
@@ -456,6 +514,7 @@ class NotificationCategory(models.TextChoices):
     QUIZ = 'quiz', 'Тест'
     ATTEMPT = 'attempt', 'Попытка'
     REVIEW = 'review', 'Проверка'
+    APPEAL = 'appeal', 'Апелляция'
 
 
 class UserNotification(TimeStampedModel):
@@ -542,3 +601,57 @@ class AttemptReview(TimeStampedModel):
 
     def __str__(self):
         return f'Проверка попытки #{self.attempt_id}'
+
+
+class AppealStatus(models.TextChoices):
+    PENDING = 'pending', 'Ожидает решения'
+    APPROVED = 'approved', 'Принята'
+    REJECTED = 'rejected', 'Отклонена'
+
+
+class AttemptAppeal(TimeStampedModel):
+    attempt = models.OneToOneField(
+        Attempt,
+        on_delete=models.CASCADE,
+        related_name='appeal',
+        verbose_name='Попытка',
+    )
+    student = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='attempt_appeals',
+        verbose_name='Студент',
+    )
+    status = models.CharField(
+        'Статус апелляции',
+        max_length=20,
+        choices=AppealStatus.choices,
+        default=AppealStatus.PENDING,
+    )
+    message = models.TextField('Текст апелляции')
+    teacher_response = models.TextField('Ответ преподавателя', blank=True)
+    resolved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='resolved_attempt_appeals',
+        verbose_name='Рассмотрел',
+        null=True,
+        blank=True,
+    )
+    resolved_at = models.DateTimeField('Рассмотрено в', null=True, blank=True)
+
+    class Meta:
+        ordering = ('status', '-created_at')
+        verbose_name = 'Апелляция по попытке'
+        verbose_name_plural = 'Апелляции по попыткам'
+
+    def __str__(self):
+        return f'Апелляция по попытке #{self.attempt_id}'
+
+    def clean(self):
+        if not self.attempt_id or not self.student_id:
+            return
+        if self.student_id and self.attempt.student_id != self.student_id:
+            raise ValidationError('Апелляцию может подать только студент, которому принадлежит попытка.')
+        if self.attempt.status != AttemptStatus.SUBMITTED:
+            raise ValidationError('Апелляция доступна только для завершенной попытки.')

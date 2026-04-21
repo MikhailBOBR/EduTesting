@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+
+{% block title %}Индивидуальные условия | EduTesting{% endblock %}
+
+{% block content %}
+<section class="page-header page-header--split">
+    <div>
+        <div class="section-kicker">Индивидуальные условия</div>
+        <h1>{{ quiz.title }}</h1>
+        <p class="muted">{{ quiz.course.title }} • Активных настроек: {{ active_overrides_count }}</p>
+    </div>
+    <div class="button-row">
+        <a class="button button-primary" href="{% url 'testing:quiz_override_create' quiz.pk %}">Добавить условия</a>
+        <a class="button button-secondary" href="{% url 'testing:quiz_detail' quiz.pk %}">Назад к тесту</a>
+    </div>
+</section>
+
+<section class="panel">
+    <div class="panel__header">
+        <div class="section-kicker">Список</div>
+        <h2>Персональные параметры студентов</h2>
+    </div>
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Студент</th>
+                    <th>Доп. время</th>
+                    <th>Доп. попытки</th>
+                    <th>Статус</th>
+                    <th>Комментарий</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for override in overrides %}
+                    <tr>
+                        <td>{{ override.student.get_full_name|default:override.student.username }}</td>
+                        <td>{{ override.extra_time_minutes }} мин.</td>
+                        <td>{{ override.extra_attempts }}</td>
+                        <td>{{ override.is_active|yesno:"Активно,Отключено" }}</td>
+                        <td>{{ override.notes|default:"—" }}</td>
+                        <td><a href="{% url 'testing:quiz_override_edit' override.pk %}">Изменить</a></td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="6">Индивидуальные условия пока не заданы.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

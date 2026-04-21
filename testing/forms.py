@@ -1,8 +1,22 @@
 from django import forms
 
 from accounts.forms import style_form_fields
+from accounts.models import User, UserRole
 
-from .models import Announcement, AttemptReview, Choice, Course, Question, QuestionType, Quiz, SemesterChoices
+from .models import (
+    Announcement,
+    AppealStatus,
+    AttemptAppeal,
+    AttemptReview,
+    Choice,
+    Course,
+    EnrollmentStatus,
+    Question,
+    QuestionType,
+    Quiz,
+    QuizAccessOverride,
+    SemesterChoices,
+)
 
 
 class CourseForm(forms.ModelForm):
@@ -167,6 +181,80 @@ class AttemptReviewForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         style_form_fields(self)
+
+
+class QuizAccessOverrideForm(forms.ModelForm):
+    class Meta:
+        model = QuizAccessOverride
+        fields = ('student', 'extra_time_minutes', 'extra_attempts', 'notes', 'is_active')
+        labels = {
+            'student': 'Студент',
+            'extra_time_minutes': 'Дополнительное время, мин.',
+            'extra_attempts': 'Дополнительные попытки',
+            'notes': 'Комментарий преподавателя',
+            'is_active': 'Условия активны',
+        }
+        widgets = {
+            'notes': forms.Textarea(attrs={'rows': 4}),
+        }
+
+    def __init__(self, *args, quiz, **kwargs):
+        self.quiz = quiz
+        super().__init__(*args, **kwargs)
+        self.fields['student'].queryset = User.objects.filter(
+            enrollments__course=quiz.course,
+            enrollments__status=EnrollmentStatus.ACTIVE,
+            role=UserRole.STUDENT,
+        ).distinct().order_by('last_name', 'first_name', 'username')
+        style_form_fields(self)
+
+
+class AttemptAppealForm(forms.ModelForm):
+    class Meta:
+        model = AttemptAppeal
+        fields = ('message',)
+        labels = {
+            'message': 'Причина апелляции',
+        }
+        widgets = {
+            'message': forms.Textarea(
+                attrs={
+                    'rows': 6,
+                    'placeholder': 'Коротко опишите, почему результат стоит пересмотреть.',
+                }
+            ),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        style_form_fields(self)
+
+
+class AttemptAppealReviewForm(forms.ModelForm):
+    class Meta:
+        model = AttemptAppeal
+        fields = ('status', 'teacher_response')
+        labels = {
+            'status': 'Решение по апелляции',
+            'teacher_response': 'Ответ преподавателя',
+        }
+        widgets = {
+            'teacher_response': forms.Textarea(attrs={'rows': 6}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        style_form_fields(self)
+
+    def clean(self):
+        cleaned_data = super().clean()
+        status_value = cleaned_data.get('status')
+        teacher_response = (cleaned_data.get('teacher_response') or '').strip()
+
+        if status_value in {AppealStatus.APPROVED, AppealStatus.REJECTED} and not teacher_response:
+            self.add_error('teacher_response', 'Добавьте ответ преподавателя перед завершением апелляции.')
+
+        return cleaned_data
 
 
 class JoinCourseForm(forms.Form):

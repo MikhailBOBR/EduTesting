@@ -1,5 +1,6 @@
 from django.contrib.auth import authenticate
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from drf_spectacular.utils import OpenApiExample, extend_schema
 from rest_framework import status
 from rest_framework.authtoken.models import Token
@@ -17,6 +18,9 @@ from .analytics import (
     build_course_topic_diagnostics,
 )
 from .api_serializers import (
+    ApiAttemptAppealRequestSerializer,
+    ApiAttemptAppealReviewRequestSerializer,
+    ApiAttemptAppealSerializer,
     ApiAttemptDraftSaveRequestSerializer,
     ApiAttemptDraftSerializer,
     ApiAttemptDetailSerializer,
@@ -28,6 +32,8 @@ from .api_serializers import (
     ApiCourseListSerializer,
     ApiEnrollmentResponseSerializer,
     ApiMyCourseSerializer,
+    ApiQuizAccessOverrideRequestSerializer,
+    ApiQuizAccessOverrideSerializer,
     ApiQuizAttemptsResponseSerializer,
     ApiQuizAttemptListSerializer,
     ApiQuizDetailSerializer,
@@ -36,8 +42,25 @@ from .api_serializers import (
     ApiTokenResponseSerializer,
     ApiUserSerializer,
 )
-from .models import Announcement, Attempt, AttemptStatus, Course, Enrollment, Quiz
-from .services import save_attempt_draft, submit_attempt
+from .models import (
+    Announcement,
+    AppealStatus,
+    Attempt,
+    AttemptAppeal,
+    AttemptStatus,
+    Course,
+    Enrollment,
+    EnrollmentStatus,
+    Quiz,
+    QuizAccessOverride,
+)
+from .services import (
+    notify_attempt_appeal,
+    notify_attempt_appeal_resolution,
+    notify_quiz_override,
+    save_attempt_draft,
+    submit_attempt,
+)
 
 
 def serialize_user(user):
@@ -93,6 +116,7 @@ def build_attempt_payload(attempt, user):
         'topic_insights': topic_insights['topic_rows'],
         'recommendations': topic_insights['recommendations'],
         'review': getattr(attempt, 'review', None),
+        'appeal': getattr(attempt, 'appeal', None),
         'show_answer_key': show_answer_key,
         'comparison': {
             **comparison,
@@ -303,7 +327,11 @@ class ApiQuizStartView(APIView):
         if attempt is None:
             if quiz.remaining_attempts(request.user) <= 0:
                 raise ValidationError({'detail': 'Лимит попыток исчерпан.'})
-            attempt = Attempt.objects.create(quiz=quiz, student=request.user)
+            attempt = Attempt.objects.create(
+                quiz=quiz,
+                student=request.user,
+                time_limit_minutes_snapshot=quiz.get_effective_time_limit(request.user),
+            )
 
         payload = {
             'attempt': attempt,
@@ -332,6 +360,58 @@ class ApiQuizAttemptsView(APIView):
         return Response(ApiQuizAttemptsResponseSerializer(payload).data)
 
 
+class ApiQuizOverrideListCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get_quiz(self, pk):
+        quiz = get_object_or_404(Quiz.objects.select_related('course', 'course__owner'), pk=pk)
+        ensure_course_owner(self.request.user, quiz.course)
+        return quiz
+
+    @extend_schema(
+        summary='Список индивидуальных условий по тесту',
+        responses={200: ApiQuizAccessOverrideSerializer(many=True)},
+    )
+    def get(self, request, pk, *args, **kwargs):
+        quiz = self.get_quiz(pk)
+        overrides = (
+            QuizAccessOverride.objects.filter(quiz=quiz)
+            .select_related('student')
+            .order_by('-is_active', 'student__last_name', 'student__first_name', 'student__username')
+        )
+        return Response(ApiQuizAccessOverrideSerializer(overrides, many=True).data)
+
+    @extend_schema(
+        summary='Создание или обновление индивидуальных условий',
+        request=ApiQuizAccessOverrideRequestSerializer,
+        responses={200: ApiQuizAccessOverrideSerializer, 201: ApiQuizAccessOverrideSerializer},
+    )
+    def post(self, request, pk, *args, **kwargs):
+        quiz = self.get_quiz(pk)
+        serializer = ApiQuizAccessOverrideRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        enrollment = get_object_or_404(
+            Enrollment.objects.select_related('student'),
+            course=quiz.course,
+            student_id=serializer.validated_data['student_id'],
+            status=EnrollmentStatus.ACTIVE,
+        )
+        override, created = QuizAccessOverride.objects.update_or_create(
+            quiz=quiz,
+            student=enrollment.student,
+            defaults={
+                'extra_time_minutes': serializer.validated_data.get('extra_time_minutes', 0),
+                'extra_attempts': serializer.validated_data.get('extra_attempts', 0),
+                'notes': serializer.validated_data.get('notes', ''),
+                'is_active': serializer.validated_data.get('is_active', True),
+            },
+        )
+        notify_quiz_override(override, updated=not created)
+        response_status = status.HTTP_201_CREATED if created else status.HTTP_200_OK
+        return Response(ApiQuizAccessOverrideSerializer(override).data, status=response_status)
+
+
 @extend_schema(summary='Детальная информация о попытке', responses={200: ApiAttemptDetailSerializer})
 class ApiAttemptDetailView(APIView):
     permission_classes = [IsAuthenticated]
@@ -348,6 +428,84 @@ class ApiAttemptDetailView(APIView):
         if attempt.student_id != user.id and not (user.is_teacher and attempt.quiz.course.owner_id == user.id):
             raise PermissionDenied('Нет доступа к этой попытке.')
         return Response(build_attempt_payload(attempt, user))
+
+
+@extend_schema(
+    summary='Подача апелляции по попытке',
+    request=ApiAttemptAppealRequestSerializer,
+    responses={200: ApiAttemptAppealSerializer, 201: ApiAttemptAppealSerializer},
+)
+class ApiAttemptAppealView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk, *args, **kwargs):
+        attempt = get_object_or_404(
+            Attempt.objects.select_related('quiz', 'quiz__course', 'student'),
+            pk=pk,
+        )
+        ensure_student(request.user)
+        if attempt.student_id != request.user.id:
+            raise PermissionDenied('Можно подать апелляцию только по своей попытке.')
+        if attempt.status != AttemptStatus.SUBMITTED:
+            raise ValidationError({'detail': 'Апелляция доступна только для завершенной попытки.'})
+
+        serializer = ApiAttemptAppealRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        appeal, created = AttemptAppeal.objects.get_or_create(
+            attempt=attempt,
+            defaults={
+                'student': request.user,
+                'message': serializer.validated_data['message'],
+            },
+        )
+        if not created and appeal.status != AppealStatus.PENDING:
+            raise ValidationError({'detail': 'Апелляция уже рассмотрена преподавателем.'})
+
+        if not created:
+            appeal.message = serializer.validated_data['message']
+            appeal.teacher_response = ''
+            appeal.resolved_by = None
+            appeal.resolved_at = None
+            appeal.status = AppealStatus.PENDING
+            appeal.save(update_fields=('message', 'teacher_response', 'resolved_by', 'resolved_at', 'status', 'updated_at'))
+
+        notify_attempt_appeal(appeal, updated=not created)
+        response_status = status.HTTP_201_CREATED if created else status.HTTP_200_OK
+        return Response(ApiAttemptAppealSerializer(appeal).data, status=response_status)
+
+
+@extend_schema(
+    summary='Рассмотрение апелляции преподавателем',
+    request=ApiAttemptAppealReviewRequestSerializer,
+    responses={200: ApiAttemptAppealSerializer},
+)
+class ApiAttemptAppealReviewView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk, *args, **kwargs):
+        appeal = get_object_or_404(
+            AttemptAppeal.objects.select_related('attempt', 'attempt__quiz', 'attempt__quiz__course', 'student'),
+            pk=pk,
+        )
+        ensure_course_owner(request.user, appeal.attempt.quiz.course)
+
+        serializer = ApiAttemptAppealReviewRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        appeal.status = serializer.validated_data['status']
+        appeal.teacher_response = serializer.validated_data.get('teacher_response', '')
+        if appeal.status == AppealStatus.PENDING:
+            appeal.resolved_by = None
+            appeal.resolved_at = None
+        else:
+            appeal.resolved_by = request.user
+            appeal.resolved_at = timezone.now()
+        appeal.save(update_fields=('status', 'teacher_response', 'resolved_by', 'resolved_at', 'updated_at'))
+
+        if appeal.status != AppealStatus.PENDING:
+            notify_attempt_appeal_resolution(appeal)
+        return Response(ApiAttemptAppealSerializer(appeal).data)
 
 
 @extend_schema(
