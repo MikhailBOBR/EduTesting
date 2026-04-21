@@ -1263,3 +1263,4 @@ class ApiTests(TestingBaseMixin, TestCase):
         self.assertEqual(schema_response.status_code, 200)
         self.assertEqual(docs_response.status_code, 200)
         self.assertIn(b'openapi', schema_response.content.lower())
+        self.assertContains(docs_response, 'Быстрый старт API')

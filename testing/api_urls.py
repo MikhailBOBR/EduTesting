@@ -22,7 +22,14 @@ app_name = 'testing_api'
 
 urlpatterns = [
     path('schema/', SpectacularAPIView.as_view(), name='schema'),
-    path('docs/', SpectacularSwaggerView.as_view(url_name='testing_api:schema'), name='docs'),
+    path(
+        'docs/',
+        SpectacularSwaggerView.as_view(
+            url_name='testing_api:schema',
+            template_name='testing/swagger_ui.html',
+        ),
+        name='docs',
+    ),
     path('auth/token/', ApiTokenAuthView.as_view(), name='token_auth'),
     path('me/', ApiMeView.as_view(), name='me'),
     path('stats/', ApiStatsView.as_view(), name='stats'),

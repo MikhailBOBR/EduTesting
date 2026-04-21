@@ -106,6 +106,58 @@ REST_FRAMEWORK = {
 
 SPECTACULAR_SETTINGS = {
     'TITLE': 'EduTesting API',
-    'DESCRIPTION': 'Минимальный демонстрационный API для курсового проекта по онлайн-тестированию студентов.',
+    'DESCRIPTION': (
+        'Аккуратный демонстрационный API для курсового проекта по онлайн-тестированию студентов.\n\n'
+        'Что удобно показывать прямо в Swagger UI:\n'
+        '* авторизацию по токену;\n'
+        '* сценарий студента: запись на курс, старт попытки, автосохранение черновика и отправка;\n'
+        '* сценарий преподавателя: просмотр попыток и аналитики курса.\n\n'
+        'Для защищенных методов сначала выполните `POST /api/auth/token/`, затем нажмите `Authorize` '
+        'и передайте токен в формате `Token ваш_токен`.'
+    ),
     'VERSION': '1.0.0',
+    'CONTACT': {
+        'name': 'Кашпирев М.Д.',
+    },
+    'TAGS': [
+        {
+            'name': 'auth',
+            'description': 'Получение токена для работы в Swagger UI и Postman.',
+        },
+        {
+            'name': 'me',
+            'description': 'Информация о текущем авторизованном пользователе.',
+        },
+        {
+            'name': 'stats',
+            'description': 'Краткая публичная статистика сервиса.',
+        },
+        {
+            'name': 'courses',
+            'description': 'Каталог курсов, запись студента и преподавательская аналитика.',
+        },
+        {
+            'name': 'quizzes',
+            'description': 'Тесты курса, старт попытки и список завершенных попыток.',
+        },
+        {
+            'name': 'attempts',
+            'description': 'Черновики, результат попытки и финальная отправка на проверку.',
+        },
+    ],
+    'SWAGGER_UI_SETTINGS': {
+        'deepLinking': True,
+        'displayRequestDuration': True,
+        'docExpansion': 'list',
+        'filter': True,
+        'persistAuthorization': True,
+        'tagsSorter': 'alpha',
+        'operationsSorter': 'alpha',
+        'defaultModelsExpandDepth': 1,
+        'defaultModelExpandDepth': 2,
+        'tryItOutEnabled': True,
+        'syntaxHighlight': {
+            'theme': 'obsidian',
+        },
+    },
 }

@@ -1,0 +1,76 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <title>{{ title|default:"EduTesting API" }}</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    {% if favicon_href %}<link rel="icon" href="{{ favicon_href }}">{% endif %}
+    <link rel="stylesheet" href="{{ swagger_ui_css }}">
+    <link rel="stylesheet" href="{% static 'css/swagger-theme.css' %}">
+</head>
+<body class="swagger-page">
+    <div class="swagger-backdrop"></div>
+
+    <header class="swagger-hero">
+        <div class="swagger-hero__inner">
+            <div class="swagger-hero__content">
+                <span class="swagger-pill">Swagger UI</span>
+                <h1>{{ title }}</h1>
+                <p>
+                    Презентационный экран для backend-возможностей EduTesting: токен-авторизация,
+                    студенческий сценарий, преподавательская аналитика и работа с попытками.
+                </p>
+                <div class="swagger-actions">
+                    <a class="swagger-button" href="{% url 'testing:home' %}">Открыть приложение</a>
+                    <a class="swagger-button swagger-button--secondary" href="{{ schema_url }}">Открыть OpenAPI schema</a>
+                </div>
+            </div>
+
+            <div class="swagger-hero__aside">
+                <article class="swagger-card swagger-card--accent">
+                    <span class="swagger-card__label">Авторизация</span>
+                    <strong>Token auth</strong>
+                    <p>Получите токен через <code>POST /api/auth/token/</code>, затем вставьте <code>Token ваш_токен</code> в <code>Authorize</code>.</p>
+                </article>
+                <article class="swagger-card">
+                    <span class="swagger-card__label">Сценарии</span>
+                    <strong>Студент и преподаватель</strong>
+                    <p>Покрыты старт попытки, автосохранение, отправка, аналитика курса и просмотр завершенных попыток.</p>
+                </article>
+            </div>
+        </div>
+    </header>
+
+    <main class="swagger-main">
+        <section class="swagger-summary">
+            <article class="swagger-note">
+                <span class="swagger-note__title">Быстрый старт API</span>
+                <p>1. Получите токен. 2. Нажмите <code>Authorize</code>. 3. Проверьте сценарий <code>enroll → start → draft → submit</code>.</p>
+            </article>
+            <article class="swagger-note">
+                <span class="swagger-note__title">Для защиты</span>
+                <p>Лучше всего смотрятся <code>POST /api/auth/token/</code>, <code>POST /api/attempts/{id}/draft/</code> и <code>GET /api/courses/{id}/analytics/</code>.</p>
+            </article>
+            <article class="swagger-note">
+                <span class="swagger-note__title">Стиль работы</span>
+                <p>Фильтр, сохранение авторизации и время ответа включены, чтобы Swagger был удобен и для демо, и для отладки.</p>
+            </article>
+        </section>
+
+        <section class="swagger-frame">
+            <div id="swagger-ui"></div>
+        </section>
+    </main>
+
+    <script src="{{ swagger_ui_bundle }}"></script>
+    <script src="{{ swagger_ui_standalone }}"></script>
+    {% if script_url %}
+        <script src="{{ script_url }}"></script>
+    {% else %}
+        <script>
+        {% include template_name_js %}
+        </script>
+    {% endif %}
+</body>
+</html>
