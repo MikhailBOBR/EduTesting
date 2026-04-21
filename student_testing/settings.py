@@ -88,6 +88,7 @@ LOGOUT_REDIRECT_URL = 'testing:home'
 AUTH_USER_MODEL = 'accounts.User'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+TEST_RUNNER = 'testing.test_runner.PrettyDiscoverRunner'
 
 REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
