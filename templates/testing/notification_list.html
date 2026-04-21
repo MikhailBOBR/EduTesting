@@ -1,21 +1,21 @@
 {% extends 'base.html' %}
 
-{% block title %}РЈРІРµРґРѕРјР»РµРЅРёСЏ | EduTesting{% endblock %}
+{% block title %}Уведомления | EduTesting{% endblock %}
 
 {% block content %}
 <section class="page-header page-header--split">
     <div class="page-header__body">
-        <div class="section-kicker">Р¦РµРЅС‚СЂ СѓРІРµРґРѕРјР»РµРЅРёР№</div>
-        <h1>Р’СЃРµ СЃРѕР±С‹С‚РёСЏ РїРѕ РєСѓСЂСЃР°Рј Рё РїРѕРїС‹С‚РєР°Рј</h1>
-        <p class="muted">РќРµРїСЂРѕС‡РёС‚Р°РЅРЅС‹С…: {{ unread_count }}</p>
+        <div class="section-kicker">Центр уведомлений</div>
+        <h1>Все события по курсам и попыткам</h1>
+        <p class="muted">Непрочитанных: {{ unread_count }}</p>
     </div>
     <div class="button-row">
-        <a class="button button-secondary" href="{% url 'testing:dashboard' %}">РќР°Р·Р°Рґ РІ РїР°РЅРµР»СЊ</a>
+        <a class="button button-secondary" href="{% url 'testing:dashboard' %}">Назад в панель</a>
         {% if unread_count %}
             <form method="post" action="{% url 'testing:notification_mark_all_read' %}">
                 {% csrf_token %}
                 <input type="hidden" name="next" value="{% url 'testing:notifications' %}">
-                <button type="submit" class="button button-primary">РћС‚РјРµС‚РёС‚СЊ РІСЃРµ РєР°Рє РїСЂРѕС‡РёС‚Р°РЅРЅС‹Рµ</button>
+                <button type="submit" class="button button-primary">Отметить все как прочитанные</button>
             </form>
         {% endif %}
     </div>
@@ -23,8 +23,8 @@
 
 <section class="panel">
     <div class="panel__header">
-        <div class="section-kicker">Р›РµРЅС‚Р°</div>
-        <h2>РџРѕСЃР»РµРґРЅРёРµ СѓРІРµРґРѕРјР»РµРЅРёСЏ</h2>
+        <div class="section-kicker">Лента</div>
+        <h2>Последние уведомления</h2>
     </div>
     <div class="card-list">
         {% for notification in notifications %}
@@ -33,9 +33,9 @@
                     <span class="badge">{{ notification.get_category_display }}</span>
                     <span class="meta-chip">{{ notification.created_at|date:"d.m.Y H:i" }}</span>
                     {% if notification.is_read %}
-                        <span class="badge">РџСЂРѕС‡РёС‚Р°РЅРѕ</span>
+                        <span class="badge">Прочитано</span>
                     {% else %}
-                        <span class="badge badge-warning">РќРѕРІРѕРµ</span>
+                        <span class="badge badge-warning">Новое</span>
                     {% endif %}
                 </div>
                 <h3>{{ notification.title }}</h3>
@@ -44,19 +44,19 @@
                 {% endif %}
                 <div class="button-row">
                     {% if notification.action_url %}
-                        <a class="button button-secondary" href="{{ notification.action_url }}">РћС‚РєСЂС‹С‚СЊ</a>
+                        <a class="button button-secondary" href="{{ notification.action_url }}">Открыть</a>
                     {% endif %}
                     {% if not notification.is_read %}
                         <form method="post" action="{% url 'testing:notification_mark_read' notification.pk %}">
                             {% csrf_token %}
                             <input type="hidden" name="next" value="{% url 'testing:notifications' %}">
-                            <button type="submit" class="button button-primary">РћС‚РјРµС‚РёС‚СЊ РєР°Рє РїСЂРѕС‡РёС‚Р°РЅРЅРѕРµ</button>
+                            <button type="submit" class="button button-primary">Отметить как прочитанное</button>
                         </form>
                     {% endif %}
                 </div>
             </article>
         {% empty %}
-            <div class="empty-state">РЈРІРµРґРѕРјР»РµРЅРёР№ РїРѕРєР° РЅРµС‚.</div>
+            <div class="empty-state">Уведомлений пока нет.</div>
         {% endfor %}
     </div>
 </section>

@@ -273,12 +273,12 @@
 
 <section class="panel">
     <div class="panel__header">
-        <div class="section-kicker">РЈРІРµРґРѕРјР»РµРЅРёСЏ</div>
-        <h2>РџРѕСЃР»РµРґРЅРёРµ СЃРѕР±С‹С‚РёСЏ</h2>
-        <p>РќРѕРІС‹Рµ РѕР±СЉСЏРІР»РµРЅРёСЏ, РїРѕРїС‹С‚РєРё, РєРѕРјРјРµРЅС‚Р°СЂРёРё Рё РёР·РјРµРЅРµРЅРёСЏ РїРѕ С‚РµСЃС‚Р°Рј.</p>
+        <div class="section-kicker">Уведомления</div>
+        <h2>Последние события</h2>
+        <p>Новые объявления, попытки, комментарии и изменения по тестам.</p>
     </div>
     <div class="button-row">
-        <a class="button button-secondary" href="{% url 'testing:notifications' %}">РћС‚РєСЂС‹С‚СЊ РІСЃРµ СѓРІРµРґРѕРјР»РµРЅРёСЏ</a>
+        <a class="button button-secondary" href="{% url 'testing:notifications' %}">Открыть все уведомления</a>
     </div>
     <div class="card-list">
         {% for notification in recent_notifications %}
@@ -292,11 +292,11 @@
                     <p class="muted">{{ notification.message }}</p>
                 {% endif %}
                 {% if notification.action_url %}
-                    <a href="{{ notification.action_url }}">РћС‚РєСЂС‹С‚СЊ</a>
+                    <a href="{{ notification.action_url }}">Открыть</a>
                 {% endif %}
             </article>
         {% empty %}
-            <div class="empty-state">РќРѕРІС‹С… СѓРІРµРґРѕРјР»РµРЅРёР№ РїРѕРєР° РЅРµС‚.</div>
+            <div class="empty-state">Новых уведомлений пока нет.</div>
         {% endfor %}
     </div>
 </section>

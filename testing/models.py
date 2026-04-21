@@ -376,20 +376,20 @@ class AttemptDraft(TimeStampedModel):
         Attempt,
         on_delete=models.CASCADE,
         related_name='draft',
-        verbose_name='Р§РµСЂРЅРѕРІРёРє РїРѕРїС‹С‚РєРё',
+        verbose_name='Черновик попытки',
     )
-    answers_payload = models.JSONField('РћС‚РІРµС‚С‹', default=dict, blank=True)
-    last_question_id = models.PositiveIntegerField('РџРѕСЃР»РµРґРЅРёР№ РёР·РјРµРЅРµРЅРЅС‹Р№ РІРѕРїСЂРѕСЃ', null=True, blank=True)
-    autosave_count = models.PositiveIntegerField('Р§РёСЃР»Рѕ Р°РІС‚РѕСЃРѕС…СЂР°РЅРµРЅРёР№', default=0)
-    saved_at = models.DateTimeField('РЎРѕС…СЂР°РЅРµРЅРѕ', default=timezone.now)
+    answers_payload = models.JSONField('Ответы', default=dict, blank=True)
+    last_question_id = models.PositiveIntegerField('Последний измененный вопрос', null=True, blank=True)
+    autosave_count = models.PositiveIntegerField('Число автосохранений', default=0)
+    saved_at = models.DateTimeField('Сохранено', default=timezone.now)
 
     class Meta:
         ordering = ('-saved_at',)
-        verbose_name = 'Р§РµСЂРЅРѕРІРёРє РїРѕРїС‹С‚РєРё'
-        verbose_name_plural = 'Р§РµСЂРЅРѕРІРёРєРё РїРѕРїС‹С‚РѕРє'
+        verbose_name = 'Черновик попытки'
+        verbose_name_plural = 'Черновики попыток'
 
     def __str__(self):
-        return f'Р§РµСЂРЅРѕРІРёРє РїРѕРїС‹С‚РєРё #{self.attempt_id}'
+        return f'Черновик попытки #{self.attempt_id}'
 
     @property
     def answered_questions_count(self):
@@ -452,10 +452,10 @@ class Announcement(TimeStampedModel):
 
 
 class NotificationCategory(models.TextChoices):
-    ANNOUNCEMENT = 'announcement', 'РћР±СЉСЏРІР»РµРЅРёРµ'
-    QUIZ = 'quiz', 'РўРµСЃС‚'
-    ATTEMPT = 'attempt', 'РџРѕРїС‹С‚РєР°'
-    REVIEW = 'review', 'РџСЂРѕРІРµСЂРєР°'
+    ANNOUNCEMENT = 'announcement', 'Объявление'
+    QUIZ = 'quiz', 'Тест'
+    ATTEMPT = 'attempt', 'Попытка'
+    REVIEW = 'review', 'Проверка'
 
 
 class UserNotification(TimeStampedModel):
@@ -463,21 +463,21 @@ class UserNotification(TimeStampedModel):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name='notifications',
-        verbose_name='РџРѕР»СѓС‡Р°С‚РµР»СЊ',
+        verbose_name='Получатель',
     )
     category = models.CharField(
-        'РљР°С‚РµРіРѕСЂРёСЏ',
+        'Категория',
         max_length=20,
         choices=NotificationCategory.choices,
     )
-    title = models.CharField('Р—Р°РіРѕР»РѕРІРѕРє', max_length=200)
-    message = models.TextField('РўРµРєСЃС‚', blank=True)
-    action_url = models.CharField('РЎСЃС‹Р»РєР°', max_length=255, blank=True)
+    title = models.CharField('Заголовок', max_length=200)
+    message = models.TextField('Текст', blank=True)
+    action_url = models.CharField('Ссылка', max_length=255, blank=True)
     course = models.ForeignKey(
         Course,
         on_delete=models.CASCADE,
         related_name='notifications',
-        verbose_name='РљСѓСЂСЃ',
+        verbose_name='Курс',
         null=True,
         blank=True,
     )
@@ -485,7 +485,7 @@ class UserNotification(TimeStampedModel):
         Quiz,
         on_delete=models.CASCADE,
         related_name='notifications',
-        verbose_name='РўРµСЃС‚',
+        verbose_name='Тест',
         null=True,
         blank=True,
     )
@@ -493,17 +493,17 @@ class UserNotification(TimeStampedModel):
         Attempt,
         on_delete=models.CASCADE,
         related_name='notifications',
-        verbose_name='РџРѕРїС‹С‚РєР°',
+        verbose_name='Попытка',
         null=True,
         blank=True,
     )
-    is_read = models.BooleanField('РџСЂРѕС‡РёС‚Р°РЅРѕ', default=False)
-    read_at = models.DateTimeField('РџСЂРѕС‡РёС‚Р°РЅРѕ РІ', null=True, blank=True)
+    is_read = models.BooleanField('Прочитано', default=False)
+    read_at = models.DateTimeField('Прочитано в', null=True, blank=True)
 
     class Meta:
         ordering = ('is_read', '-created_at')
-        verbose_name = 'РЈРІРµРґРѕРјР»РµРЅРёРµ'
-        verbose_name_plural = 'РЈРІРµРґРѕРјР»РµРЅРёСЏ'
+        verbose_name = 'Уведомление'
+        verbose_name_plural = 'Уведомления'
         indexes = [
             models.Index(fields=('recipient', 'is_read', 'created_at')),
         ]
@@ -524,21 +524,21 @@ class AttemptReview(TimeStampedModel):
         Attempt,
         on_delete=models.CASCADE,
         related_name='review',
-        verbose_name='РџРѕРїС‹С‚РєР°',
+        verbose_name='Попытка',
     )
     teacher = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name='attempt_reviews',
-        verbose_name='РџСЂРµРїРѕРґР°РІР°С‚РµР»СЊ',
+        verbose_name='Преподаватель',
     )
-    feedback = models.TextField('РљРѕРјРјРµРЅС‚Р°СЂРёР№ РїСЂРµРїРѕРґР°РІР°С‚РµР»СЏ')
-    reviewed_at = models.DateTimeField('Р”Р°С‚Р° РїСЂРѕРІРµСЂРєРё', default=timezone.now)
+    feedback = models.TextField('Комментарий преподавателя')
+    reviewed_at = models.DateTimeField('Дата проверки', default=timezone.now)
 
     class Meta:
         ordering = ('-reviewed_at',)
-        verbose_name = 'РљРѕРјРјРµРЅС‚Р°СЂРёР№ РїРѕ РїРѕРїС‹С‚РєРµ'
-        verbose_name_plural = 'РљРѕРјРјРµРЅС‚Р°СЂРёРё РїРѕ РїРѕРїС‹С‚РєР°Рј'
+        verbose_name = 'Комментарий по попытке'
+        verbose_name_plural = 'Комментарии по попыткам'
 
     def __str__(self):
-        return f'РџСЂРѕРІРµСЂРєР° РїРѕРїС‹С‚РєРё #{self.attempt_id}'
+        return f'Проверка попытки #{self.attempt_id}'

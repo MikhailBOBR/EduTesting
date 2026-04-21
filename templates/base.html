@@ -20,6 +20,7 @@
                     <a href="{% url 'testing:course_list' %}">Курсы</a>
                     {% if user.is_authenticated %}
                         <a href="{% url 'testing:dashboard' %}">Панель</a>
+                        <a href="{% url 'testing:notifications' %}">Уведомления</a>
                         <a href="{% url 'accounts:profile' %}">Профиль</a>
                     {% endif %}
                     {% if user.is_authenticated and user.is_teacher %}

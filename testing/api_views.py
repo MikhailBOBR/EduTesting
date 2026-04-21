@@ -351,19 +351,7 @@ class ApiAttemptDetailView(APIView):
 
 
 @extend_schema(
-    summary='Отправка попытки на проверку',
-    request=ApiAttemptSubmitRequestSerializer,
-    responses={200: ApiAttemptDetailSerializer},
-    examples=[
-        OpenApiExample(
-            'Пример тела запроса',
-            value={'answers': {'1': [2], '2': [4, 6]}},
-            request_only=True,
-        )
-    ],
-)
-@extend_schema(
-    summary='РђРІС‚РѕСЃРѕС…СЂР°РЅРµРЅРёРµ С‡РµСЂРЅРѕРІРёРєР° РїРѕРїС‹С‚РєРё',
+    summary='Автосохранение черновика попытки',
     request=ApiAttemptDraftSaveRequestSerializer,
     responses={200: ApiAttemptDraftSerializer},
 )
@@ -377,9 +365,9 @@ class ApiAttemptDraftSaveView(APIView):
         )
         ensure_student(request.user)
         if attempt.student_id != request.user.id:
-            raise PermissionDenied('РњРѕР¶РЅРѕ СЃРѕС…СЂР°РЅСЏС‚СЊ С‚РѕР»СЊРєРѕ СЃРІРѕРё С‡РµСЂРЅРѕРІРёРєРё.')
+            raise PermissionDenied('Можно сохранять только свои черновики.')
         if attempt.status == AttemptStatus.SUBMITTED:
-            raise ValidationError({'detail': 'РќРµР»СЊР·СЏ СЃРѕС…СЂР°РЅСЏС‚СЊ С‡РµСЂРЅРѕРІРёРє РґР»СЏ Р·Р°РІРµСЂС€РµРЅРЅРѕР№ РїРѕРїС‹С‚РєРё.'})
+            raise ValidationError({'detail': 'Нельзя сохранять черновик для завершенной попытки.'})
 
         serializer = ApiAttemptDraftSaveRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -397,12 +385,12 @@ class ApiAttemptDraftSaveView(APIView):
         return Response(ApiAttemptDraftSerializer(payload).data)
 
 @extend_schema(
-    summary='РћС‚РїСЂР°РІРєР° РїРѕРїС‹С‚РєРё РЅР° РїСЂРѕРІРµСЂРєСѓ',
+    summary='Отправка попытки на проверку',
     request=ApiAttemptSubmitRequestSerializer,
     responses={200: ApiAttemptDetailSerializer},
     examples=[
         OpenApiExample(
-            'РџСЂРёРјРµСЂ С‚РµР»Р° Р·Р°РїСЂРѕСЃР°',
+            'Пример тела запроса',
             value={'answers': {'1': [2], '2': [4, 6]}},
             request_only=True,
         )

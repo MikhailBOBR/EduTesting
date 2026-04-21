@@ -449,15 +449,15 @@ class CourseResultsExportView(TeacherRequiredMixin, View):
         writer = csv.writer(response, delimiter=';')
 
         header = [
-            'РЎС‚СѓРґРµРЅС‚',
-            'Р›РѕРіРёРЅ',
-            'Р“СЂСѓРїРїР°',
-            'РЎС‚Р°С‚СѓСЃ Р·Р°РїРёСЃРё',
-            'Р—Р°РІРµСЂС€РµРЅРѕ С‚РµСЃС‚РѕРІ',
-            'РћСЃС‚Р°Р»РѕСЃСЊ С‚РµСЃС‚РѕРІ',
-            'РЎСЂРµРґРЅРёР№ СЂРµР·СѓР»СЊС‚Р°С‚, %',
-            'Р›СѓС‡С€РёР№ СЂРµР·СѓР»СЊС‚Р°С‚, %',
-            'РџРѕСЃР»РµРґРЅСЏСЏ РїРѕРїС‹С‚РєР°',
+            'Студент',
+            'Логин',
+            'Группа',
+            'Статус записи',
+            'Завершено тестов',
+            'Осталось тестов',
+            'Средний результат, %',
+            'Лучший результат, %',
+            'Последняя попытка',
         ]
         header.extend([f'{quiz.title} (%)' for quiz in gradebook['quizzes']])
         writer.writerow(header)
@@ -1014,7 +1014,7 @@ class AttemptReviewView(TeacherRequiredMixin, UpdateView):
         form.instance.attempt = self.attempt
         form.instance.teacher = self.request.user
         form.instance.reviewed_at = timezone.now()
-        messages.success(self.request, 'РљРѕРјРјРµРЅС‚Р°СЂРёР№ РїСЂРµРїРѕРґР°РІР°С‚РµР»СЏ СЃРѕС…СЂР°РЅРµРЅ.')
+        messages.success(self.request, 'Комментарий преподавателя сохранен.')
         updated = self.get_object() is not None
         response = super().form_valid(form)
         notify_attempt_review(self.object, updated=updated)
@@ -1023,7 +1023,7 @@ class AttemptReviewView(TeacherRequiredMixin, UpdateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['attempt'] = self.attempt
-        context['page_title'] = 'РљРѕРјРјРµРЅС‚Р°СЂРёР№ Рє РїРѕРїС‹С‚РєРµ'
+        context['page_title'] = 'Комментарий к попытке'
         return context
 
     def get_success_url(self):

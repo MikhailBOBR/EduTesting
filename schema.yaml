@@ -27,6 +27,40 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiAttemptDetail'
           description: ''
+  /api/attempts/{id}/draft/:
+    post:
+      operationId: attempts_draft_create
+      summary: Автосохранение черновика попытки
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - attempts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApiAttemptDraftSaveRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ApiAttemptDraftSaveRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ApiAttemptDraftSaveRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAttemptDraft'
+          description: ''
   /api/attempts/{id}/submit/:
     post:
       operationId: attempts_submit_create
@@ -594,6 +628,65 @@ components:
       - selected_choice_ids
       - selected_choices
       - topic
+    ApiAttemptComparison:
+      type: object
+      properties:
+        previous_attempt_id:
+          type: integer
+        previous_submitted_at:
+          type: string
+          format: date-time
+        previous_score_percent:
+          type: integer
+        score_delta:
+          type: integer
+        points_delta:
+          type: integer
+        correct_answers_delta:
+          type: integer
+        duration_delta_minutes:
+          type: number
+          format: double
+        improved_topics:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApiAttemptComparisonTopic'
+        declined_topics:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApiAttemptComparisonTopic'
+        unchanged_topics_count:
+          type: integer
+      required:
+      - correct_answers_delta
+      - declined_topics
+      - duration_delta_minutes
+      - improved_topics
+      - points_delta
+      - previous_attempt_id
+      - previous_score_percent
+      - previous_submitted_at
+      - score_delta
+      - unchanged_topics_count
+    ApiAttemptComparisonTopic:
+      type: object
+      properties:
+        topic:
+          type: string
+        previous_accuracy:
+          type: integer
+        current_accuracy:
+          type: integer
+        delta_accuracy:
+          type: integer
+        trend:
+          type: string
+      required:
+      - current_accuracy
+      - delta_accuracy
+      - previous_accuracy
+      - topic
+      - trend
     ApiAttemptDetail:
       type: object
       properties:
@@ -618,23 +711,61 @@ components:
           nullable: true
         show_answer_key:
           type: boolean
+        comparison:
+          allOf:
+          - $ref: '#/components/schemas/ApiAttemptComparison'
+          nullable: true
       required:
       - answers
       - attempt
+      - comparison
       - recommendations
       - review
       - show_answer_key
       - topic_insights
+    ApiAttemptDraft:
+      type: object
+      properties:
+        saved_at:
+          type: string
+          format: date-time
+        autosave_count:
+          type: integer
+        answered_questions_count:
+          type: integer
+        last_question_id:
+          type: integer
+          nullable: true
+      required:
+      - answered_questions_count
+      - autosave_count
+      - last_question_id
+      - saved_at
+    ApiAttemptDraftSaveRequest:
+      type: object
+      properties:
+        answers:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: integer
+              minimum: 1
+        last_question_id:
+          type: integer
+          nullable: true
+      required:
+      - answers
     ApiAttemptReview:
       type: object
       properties:
         feedback:
           type: string
-          title: РљРѕРјРјРµРЅС‚Р°СЂРёР№ РїСЂРµРїРѕРґР°РІР°С‚РµР»СЏ
+          title: Комментарий преподавателя
         reviewed_at:
           type: string
           format: date-time
-          title: Р”Р°С‚Р° РїСЂРѕРІРµСЂРєРё
+          title: Дата проверки
         teacher_name:
           type: string
           readOnly: true

@@ -357,16 +357,16 @@ def build_course_leaderboard(course, limit=10):
     for index, row in enumerate(ranking[:limit], start=1):
         if row['progress_percent'] == 100 and row['average_score'] >= 85:
             status_code = 'leader'
-            status_label = 'Р›РёРґРµСЂ РєСѓСЂСЃР°'
+            status_label = 'Лидер курса'
         elif row['average_score'] >= 70:
             status_code = 'stable'
-            status_label = 'РЎС‚Р°Р±РёР»СЊРЅС‹Р№ С‚РµРјРї'
+            status_label = 'Стабильный темп'
         elif row['completed_quizzes'] == 0:
             status_code = 'risk'
-            status_label = 'РќРµС‚ РїСЂРѕРіСЂРµСЃСЃР°'
+            status_label = 'Нет прогресса'
         else:
             status_code = 'watch'
-            status_label = 'РќСѓР¶РЅРѕ СѓСЃРёР»РµРЅРёРµ'
+            status_label = 'Нужно усиление'
 
         leaderboard.append(
             {

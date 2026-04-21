@@ -158,7 +158,7 @@ class AttemptReviewForm(forms.ModelForm):
         model = AttemptReview
         fields = ('feedback',)
         labels = {
-            'feedback': 'РљРѕРјРјРµРЅС‚Р°СЂРёР№ РїСЂРµРїРѕРґР°РІР°С‚РµР»СЏ',
+            'feedback': 'Комментарий преподавателя',
         }
         widgets = {
             'feedback': forms.Textarea(attrs={'rows': 6}),
