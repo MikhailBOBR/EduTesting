@@ -122,6 +122,18 @@ python manage.py runserver
 - Swagger UI: `http://127.0.0.1:8000/api/docs/`
 - OpenAPI schema: `http://127.0.0.1:8000/api/schema/`
 
+## Тестовые аккаунты
+
+### Основные
+
+- преподаватель: `teacher_demo` / `TeacherDemo123!`
+- студент: `student_demo` / `StudentDemo123!`
+
+### Дополнительные
+
+- преподаватель: `teacher_test` / `TeacherTest123!`
+- студент: `student_test` / `StudentTest123!`
+
 ## Демо-данные
 
 Команда:
@@ -140,16 +152,6 @@ python manage.py seed_demo_data
 - индивидуальные условия по тестам;
 - примеры апелляций;
 - материал для аналитики, достижений и контроля подозрительных попыток.
-
-### Основные аккаунты
-
-- преподаватель: `teacher_demo` / `TeacherDemo123!`
-- студент: `student_demo` / `StudentDemo123!`
-
-### Дополнительные аккаунты
-
-- преподаватель: `teacher_test` / `TeacherTest123!`
-- студент: `student_test` / `StudentTest123!`
 
 ## Ключевые web-маршруты
 
