@@ -182,7 +182,11 @@ class ApiTokenAuthView(APIView):
         return Response(ApiTokenResponseSerializer(payload).data)
 
 
-@extend_schema(summary='Информация о текущем пользователе', responses={200: ApiUserSerializer})
+@extend_schema(
+    summary='Информация о текущем пользователе',
+    description='Возвращает профиль авторизованного пользователя с ролью, почтой и учебной группой.',
+    responses={200: ApiUserSerializer},
+)
 class ApiMeView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -210,7 +214,10 @@ class ApiStatsView(APIView):
         return Response(self.serializer_class(payload).data)
 
 
-@extend_schema(summary='Список опубликованных курсов')
+@extend_schema(
+    summary='Список опубликованных курсов',
+    description='Публичный каталог курсов с краткой информацией, владельцем и количеством опубликованных тестов.',
+)
 class ApiCourseListView(ListAPIView):
     permission_classes = [AllowAny]
     serializer_class = ApiCourseListSerializer
@@ -252,7 +259,10 @@ class ApiMyAchievementsView(APIView):
         return Response(ApiStudentAchievementSerializer(achievements, many=True).data)
 
 
-@extend_schema(summary='Детальная информация о курсе')
+@extend_schema(
+    summary='Детальная информация о курсе',
+    description='Возвращает полное описание курса, список опубликованных тестов и объявления.',
+)
 class ApiCourseDetailView(RetrieveAPIView):
     permission_classes = [AllowAny]
     serializer_class = ApiCourseDetailSerializer
@@ -264,7 +274,11 @@ class ApiCourseDetailView(RetrieveAPIView):
         )
 
 
-@extend_schema(summary='Запись студента на курс', responses={200: ApiEnrollmentResponseSerializer})
+@extend_schema(
+    summary='Запись студента на курс',
+    description='Создает запись студента на опубликованный курс или подтверждает, что запись уже существует.',
+    responses={200: ApiEnrollmentResponseSerializer},
+)
 class ApiCourseEnrollView(APIView):
     permission_classes = [IsAuthenticated]
     serializer_class = ApiEnrollmentResponseSerializer
@@ -282,7 +296,11 @@ class ApiCourseEnrollView(APIView):
         return Response(ApiEnrollmentResponseSerializer(payload).data, status=response_status)
 
 
-@extend_schema(summary='Аналитика курса для преподавателя', responses={200: ApiCourseAnalyticsSerializer})
+@extend_schema(
+    summary='Аналитика курса для преподавателя',
+    description='Сводит общую точность по курсу, слабые темы, студентов с рисками и лидерборд.',
+    responses={200: ApiCourseAnalyticsSerializer},
+)
 class ApiCourseAnalyticsView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -352,7 +370,10 @@ class ApiCourseIntegrityView(APIView):
         return Response(ApiCourseIntegritySerializer(payload).data)
 
 
-@extend_schema(summary='Детальная информация о тесте')
+@extend_schema(
+    summary='Детальная информация о тесте',
+    description='Возвращает описание теста, вопросы, настройки доступности и эффективные ограничения для текущего пользователя.',
+)
 class ApiQuizDetailView(RetrieveAPIView):
     permission_classes = [AllowAny]
     serializer_class = ApiQuizDetailSerializer
@@ -363,7 +384,11 @@ class ApiQuizDetailView(RetrieveAPIView):
         )
 
 
-@extend_schema(summary='Старт попытки по тесту', responses={200: ApiAttemptStartResponseSerializer, 201: ApiAttemptStartResponseSerializer})
+@extend_schema(
+    summary='Старт попытки по тесту',
+    description='Создает новую попытку или переиспользует уже активную, если студент не завершил предыдущее прохождение.',
+    responses={200: ApiAttemptStartResponseSerializer, 201: ApiAttemptStartResponseSerializer},
+)
 class ApiQuizStartView(APIView):
     permission_classes = [IsAuthenticated]
     serializer_class = ApiAttemptStartResponseSerializer
@@ -410,7 +435,11 @@ class ApiQuizStartView(APIView):
         return Response(ApiAttemptStartResponseSerializer(payload).data, status=response_status)
 
 
-@extend_schema(summary='Список попыток по тесту для преподавателя', responses={200: ApiQuizAttemptsResponseSerializer})
+@extend_schema(
+    summary='Список попыток по тесту для преподавателя',
+    description='Возвращает журнал завершенных попыток с краткой сводкой по результату и индикаторам integrity-контроля.',
+    responses={200: ApiQuizAttemptsResponseSerializer},
+)
 class ApiQuizAttemptsView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -443,6 +472,7 @@ class ApiQuizOverrideListCreateView(APIView):
 
     @extend_schema(
         summary='Список индивидуальных условий по тесту',
+        description='Показывает все персональные условия по тесту для студентов курса.',
         responses={200: ApiQuizAccessOverrideSerializer(many=True)},
     )
     def get(self, request, pk, *args, **kwargs):
@@ -456,8 +486,22 @@ class ApiQuizOverrideListCreateView(APIView):
 
     @extend_schema(
         summary='Создание или обновление индивидуальных условий',
+        description='Позволяет преподавателю выдать студенту дополнительные попытки, время и комментарий по тесту.',
         request=ApiQuizAccessOverrideRequestSerializer,
         responses={200: ApiQuizAccessOverrideSerializer, 201: ApiQuizAccessOverrideSerializer},
+        examples=[
+            OpenApiExample(
+                'Пример индивидуальных условий',
+                value={
+                    'student_id': 6,
+                    'extra_time_minutes': 15,
+                    'extra_attempts': 1,
+                    'notes': 'Индивидуальные условия для демонстрации API.',
+                    'is_active': True,
+                },
+                request_only=True,
+            )
+        ],
     )
     def post(self, request, pk, *args, **kwargs):
         quiz = self.get_quiz(pk)
@@ -485,7 +529,11 @@ class ApiQuizOverrideListCreateView(APIView):
         return Response(ApiQuizAccessOverrideSerializer(override).data, status=response_status)
 
 
-@extend_schema(summary='Детальная информация о попытке', responses={200: ApiAttemptDetailSerializer})
+@extend_schema(
+    summary='Детальная информация о попытке',
+    description='Возвращает подробный результат попытки: ответы, рекомендации, сравнение, апелляцию, review и новые достижения.',
+    responses={200: ApiAttemptDetailSerializer},
+)
 class ApiAttemptDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -505,8 +553,18 @@ class ApiAttemptDetailView(APIView):
 
 @extend_schema(
     summary='Подача апелляции по попытке',
+    description='Создает новую апелляцию по завершенной попытке или обновляет текст еще не рассмотренной апелляции.',
     request=ApiAttemptAppealRequestSerializer,
     responses={200: ApiAttemptAppealSerializer, 201: ApiAttemptAppealSerializer},
+    examples=[
+        OpenApiExample(
+            'Пример апелляции',
+            value={
+                'message': 'Прошу пересмотреть результат по одному из вопросов, так как ответ частично совпадает с эталоном.',
+            },
+            request_only=True,
+        )
+    ],
 )
 class ApiAttemptAppealView(APIView):
     permission_classes = [IsAuthenticated]
@@ -550,8 +608,19 @@ class ApiAttemptAppealView(APIView):
 
 @extend_schema(
     summary='Рассмотрение апелляции преподавателем',
+    description='Позволяет преподавателю принять, отклонить или вернуть апелляцию в статус ожидания.',
     request=ApiAttemptAppealReviewRequestSerializer,
     responses={200: ApiAttemptAppealSerializer},
+    examples=[
+        OpenApiExample(
+            'Пример решения по апелляции',
+            value={
+                'status': 'rejected',
+                'teacher_response': 'Результат оставлен без изменения, так как критерий требует полного совпадения ответа.',
+            },
+            request_only=True,
+        )
+    ],
 )
 class ApiAttemptAppealReviewView(APIView):
     permission_classes = [IsAuthenticated]
@@ -583,8 +652,19 @@ class ApiAttemptAppealReviewView(APIView):
 
 @extend_schema(
     summary='Автосохранение черновика попытки',
+    description='Сохраняет промежуточные ответы студента и последнюю активную позицию в тесте.',
     request=ApiAttemptDraftSaveRequestSerializer,
     responses={200: ApiAttemptDraftSerializer},
+    examples=[
+        OpenApiExample(
+            'Пример черновика',
+            value={
+                'answers': {'1': [2]},
+                'last_question_id': 1,
+            },
+            request_only=True,
+        )
+    ],
 )
 class ApiAttemptDraftSaveView(APIView):
     permission_classes = [IsAuthenticated]
@@ -617,6 +697,7 @@ class ApiAttemptDraftSaveView(APIView):
 
 @extend_schema(
     summary='Отправка попытки на проверку',
+    description='Завершает попытку, проверяет ответы и возвращает подробный результат с аналитикой и дополнительными блоками.',
     request=ApiAttemptSubmitRequestSerializer,
     responses={200: ApiAttemptDetailSerializer},
     examples=[

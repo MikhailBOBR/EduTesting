@@ -2,13 +2,129 @@
   "info": {
     "_postman_id": "84fb9f7b-7f49-4c0d-91d8-4ad3f4d56401",
     "name": "EduTesting API Demo",
-    "description": "Коллекция для демонстрации ключевых API-сценариев EduTesting: авторизация, прохождение теста, достижения, аналитика, контроль подозрительных попыток, индивидуальные условия и апелляции.",
+    "description": "Коллекция для демонстрации ключевых API-сценариев EduTesting: публичный обзор сервиса, авторизация, студенческий поток прохождения теста, достижения, аналитика, контроль подозрительных попыток, индивидуальные условия и апелляции.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
     {
+      "name": "Public Overview",
+      "description": "Публичные обзорные методы, которые удобно показывать в начале демонстрации API.",
+      "item": [
+        {
+          "name": "Service Stats",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Service stats returned 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/stats/",
+            "description": "Возвращает агрегированную статистику сервиса."
+          },
+          "response": []
+        },
+        {
+          "name": "Course Catalog",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Course catalog returned 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/courses/",
+            "description": "Публичный каталог опубликованных курсов."
+          },
+          "response": []
+        },
+        {
+          "name": "Course Detail",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Course detail returned 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/courses/{{course_id}}/",
+            "description": "Подробная информация о выбранном курсе."
+          },
+          "response": []
+        },
+        {
+          "name": "Quiz Detail",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Quiz detail returned 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/quizzes/{{quiz_id}}/",
+            "description": "Описание теста, вопросы и эффективные ограничения для пользователя."
+          },
+          "response": []
+        },
+        {
+          "name": "OpenAPI Schema",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Schema returned 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/schema/?format={{schema_format}}",
+            "description": "Возвращает OpenAPI schema в выбранном формате."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
       "name": "Auth",
-      "description": "Получение токенов для студента и преподавателя.",
+      "description": "Получение токенов для студента и преподавателя с автоматическим сохранением в collection variables.",
       "item": [
         {
           "name": "Student Token",
@@ -18,7 +134,13 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "pm.test('Student token returned 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
                   "const data = pm.response.json();",
+                  "pm.test('Student token exists', function () {",
+                  "    pm.expect(data.token).to.be.a('string').and.not.empty;",
+                  "});",
                   "if (data.token) {",
                   "    pm.collectionVariables.set('student_token', data.token);",
                   "}"
@@ -56,7 +178,13 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "pm.test('Teacher token returned 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
                   "const data = pm.response.json();",
+                  "pm.test('Teacher token exists', function () {",
+                  "    pm.expect(data.token).to.be.a('string').and.not.empty;",
+                  "});",
                   "if (data.token) {",
                   "    pm.collectionVariables.set('teacher_token', data.token);",
                   "}"
@@ -90,10 +218,23 @@
     },
     {
       "name": "Student Flow",
-      "description": "Полный сценарий студента: вход, запись на курс, прохождение теста, результат, достижения и апелляция.",
+      "description": "Полный сценарий студента: вход, просмотр личных курсов, запись на курс, прохождение теста, результат, достижения и апелляция.",
       "item": [
         {
           "name": "Me",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Student profile returned 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "header": [
@@ -108,7 +249,48 @@
           "response": []
         },
         {
+          "name": "My Courses",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('My courses returned 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{auth_prefix}} {{student_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/my/courses/",
+            "description": "Возвращает список курсов, на которые записан студент."
+          },
+          "response": []
+        },
+        {
           "name": "Enroll To Course",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Enrollment returned 200 or 201', function () {",
+                  "    pm.expect([200, 201]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
@@ -130,7 +312,13 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "pm.test('Start attempt returned 200 or 201', function () {",
+                  "    pm.expect([200, 201]).to.include(pm.response.code);",
+                  "});",
                   "const data = pm.response.json();",
+                  "pm.test('Attempt id exists', function () {",
+                  "    pm.expect(data.attempt.id).to.be.a('number');",
+                  "});",
                   "if (data.attempt && data.attempt.id) {",
                   "    pm.environment.set('attempt_id', data.attempt.id);",
                   "}"
@@ -153,6 +341,19 @@
         },
         {
           "name": "Save Draft",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Draft save returned 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
@@ -181,6 +382,19 @@
         },
         {
           "name": "Submit Attempt",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Attempt submit returned 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
@@ -209,6 +423,19 @@
         },
         {
           "name": "Attempt Detail",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Attempt detail returned 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "header": [
@@ -224,6 +451,19 @@
         },
         {
           "name": "My Achievements",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('My achievements returned 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "header": [
@@ -245,7 +485,13 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "pm.test('Appeal submit returned 200 or 201', function () {",
+                  "    pm.expect([200, 201]).to.include(pm.response.code);",
+                  "});",
                   "const data = pm.response.json();",
+                  "pm.test('Appeal id exists', function () {",
+                  "    pm.expect(data.id).to.be.a('number');",
+                  "});",
                   "if (data.id) {",
                   "    pm.environment.set('appeal_id', data.id);",
                   "}"
@@ -287,6 +533,19 @@
       "item": [
         {
           "name": "Course Analytics",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Course analytics returned 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "header": [
@@ -302,6 +561,19 @@
         },
         {
           "name": "Course Integrity",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Course integrity returned 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "header": [
@@ -311,12 +583,25 @@
               }
             ],
             "url": "{{base_url}}/api/courses/{{course_id}}/integrity/",
-            "description": "Возвращает попытки с флагами внимания и их уровень риска."
+            "description": "Возвращает попытки с флагами внимания и уровнем риска."
           },
           "response": []
         },
         {
           "name": "Quiz Attempts",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Quiz attempts returned 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "header": [
@@ -331,7 +616,48 @@
           "response": []
         },
         {
+          "name": "List Quiz Overrides",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Quiz overrides returned 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{auth_prefix}} {{teacher_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/quizzes/{{quiz_id}}/overrides/",
+            "description": "Показывает все индивидуальные условия по выбранному тесту."
+          },
+          "response": []
+        },
+        {
           "name": "Set Quiz Override",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Quiz override returned 200 or 201', function () {",
+                  "    pm.expect([200, 201]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
@@ -360,6 +686,19 @@
         },
         {
           "name": "Review Appeal",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Appeal review returned 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [

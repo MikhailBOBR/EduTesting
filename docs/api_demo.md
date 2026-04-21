@@ -38,25 +38,31 @@ http://127.0.0.1:8000/api/docs/
 
 Что есть внутри коллекции:
 
+- папка `Public Overview`
 - папка `Auth`
 - папка `Student Flow`
 - папка `Teacher Flow`
+- готовые обзорные запросы для статистики, списка курсов, описания курса и теста
 - автоматическое сохранение `student_token`
 - автоматическое сохранение `teacher_token`
 - автоматическое сохранение `attempt_id`
+- автоматическое сохранение `appeal_id`
 - готовые тела запросов для `draft`, `submit`, `appeal`, `override`
+- встроенные Postman-tests, чтобы на скриншотах были видны успешные проверки ответов
 
 ## Что показать в Swagger
 
 Минимальный сильный сценарий:
 
 1. `POST /api/auth/token/`
-2. `POST /api/quizzes/{id}/start/`
-3. `POST /api/attempts/{id}/draft/`
-4. `POST /api/attempts/{id}/submit/`
-5. `GET /api/my/achievements/`
-6. `GET /api/courses/{id}/analytics/`
-7. `GET /api/courses/{id}/integrity/`
+2. `GET /api/stats/`
+3. `GET /api/courses/`
+4. `POST /api/quizzes/{id}/start/`
+5. `POST /api/attempts/{id}/draft/`
+6. `POST /api/attempts/{id}/submit/`
+7. `GET /api/my/achievements/`
+8. `GET /api/courses/{id}/analytics/`
+9. `GET /api/courses/{id}/integrity/`
 
 Особенно хорошо смотрятся:
 
@@ -85,8 +91,22 @@ http://127.0.0.1:8000/api/docs/
 2. `GET /api/courses/{id}/analytics/`
 3. `GET /api/courses/{id}/integrity/`
 4. `GET /api/quizzes/{id}/attempts/`
-5. `POST /api/quizzes/{id}/overrides/`
-6. `POST /api/appeals/{id}/review/`
+5. `GET /api/quizzes/{id}/overrides/`
+6. `POST /api/quizzes/{id}/overrides/`
+7. `POST /api/appeals/{id}/review/`
+
+## Рекомендуемый набор скриншотов
+
+Для сильной демонстрации работоспособности API удобно подготовить такие экраны:
+
+1. Swagger UI с авторизацией и раскрытым `POST /api/auth/token/`
+2. Swagger UI с `POST /api/attempts/{id}/submit/` и примером тела запроса
+3. Swagger UI с `GET /api/my/achievements/`
+4. Swagger UI с `GET /api/courses/{id}/analytics/`
+5. Swagger UI с `GET /api/courses/{id}/integrity/`
+6. Postman: успешное получение токена
+7. Postman: студенческий сценарий `start -> draft -> submit`
+8. Postman: преподавательский сценарий `analytics -> integrity -> review appeal`
 
 ## Пример авторизации
 

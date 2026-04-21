@@ -3,20 +3,25 @@ info:
   title: EduTesting API
   version: 1.0.0
   description: |-
-    API для платформы онлайн-тестирования с акцентом на сильные backend-сценарии.
+    Полноценный API платформы онлайн-тестирования студентов с акцентом на практические backend-сценарии: автосохранение черновика, сравнение попыток, достижения, аналитика курса, индивидуальные условия, апелляции и контроль подозрительных попыток.
 
-    Что удобно показывать прямо в Swagger UI:
-    * токен-авторизацию и персональные роли;
-    * студенческий поток: запись на курс, старт попытки, автосохранение черновика, отправка и достижения;
-    * преподавательский поток: аналитика курса, контроль подозрительных попыток, индивидуальные условия и апелляции.
+    Что особенно удобно демонстрировать в Swagger UI:
+    * токен-авторизацию и разделение ролей пользователя;
+    * студенческий поток: запись на курс, старт попытки, автосохранение, отправка, результат и достижения;
+    * преподавательский поток: аналитика курса, integrity-контроль, индивидуальные условия и рассмотрение апелляций;
+    * публичные обзорные методы: статистику сервиса, каталог курсов, описание курса и теста.
 
     Для защищенных методов сначала выполните `POST /api/auth/token/`, затем нажмите `Authorize` и передайте токен в формате `Token ваш_токен`.
   contact:
-    name: Mikhail Kashpirev
+    name: Кашпирев М.Д.
+  license:
+    name: All rights reserved
 paths:
   /api/appeals/{id}/review/:
     post:
       operationId: appeals_review_create
+      description: Позволяет преподавателю принять, отклонить или вернуть апелляцию
+        в статус ожидания.
       summary: Рассмотрение апелляции преподавателем
       parameters:
       - in: path
@@ -31,6 +36,13 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ApiAttemptAppealReviewRequest'
+            examples:
+              ПримерРешенияПоАпелляции:
+                value:
+                  status: rejected
+                  teacher_response: Результат оставлен без изменения, так как критерий
+                    требует полного совпадения ответа.
+                summary: Пример решения по апелляции
           application/x-www-form-urlencoded:
             schema:
               $ref: '#/components/schemas/ApiAttemptAppealReviewRequest'
@@ -51,6 +63,8 @@ paths:
   /api/attempts/{id}/:
     get:
       operationId: attempts_retrieve
+      description: 'Возвращает подробный результат попытки: ответы, рекомендации,
+        сравнение, апелляцию, review и новые достижения.'
       summary: Детальная информация о попытке
       parameters:
       - in: path
@@ -73,6 +87,8 @@ paths:
   /api/attempts/{id}/appeal/:
     post:
       operationId: attempts_appeal_create
+      description: Создает новую апелляцию по завершенной попытке или обновляет текст
+        еще не рассмотренной апелляции.
       summary: Подача апелляции по попытке
       parameters:
       - in: path
@@ -87,6 +103,12 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ApiAttemptAppealRequest'
+            examples:
+              ПримерАпелляции:
+                value:
+                  message: Прошу пересмотреть результат по одному из вопросов, так
+                    как ответ частично совпадает с эталоном.
+                summary: Пример апелляции
           application/x-www-form-urlencoded:
             schema:
               $ref: '#/components/schemas/ApiAttemptAppealRequest'
@@ -113,6 +135,8 @@ paths:
   /api/attempts/{id}/draft/:
     post:
       operationId: attempts_draft_create
+      description: Сохраняет промежуточные ответы студента и последнюю активную позицию
+        в тесте.
       summary: Автосохранение черновика попытки
       parameters:
       - in: path
@@ -127,6 +151,14 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ApiAttemptDraftSaveRequest'
+            examples:
+              ПримерЧерновика:
+                value:
+                  answers:
+                    '1':
+                    - 2
+                  last_question_id: 1
+                summary: Пример черновика
           application/x-www-form-urlencoded:
             schema:
               $ref: '#/components/schemas/ApiAttemptDraftSaveRequest'
@@ -147,6 +179,8 @@ paths:
   /api/attempts/{id}/submit/:
     post:
       operationId: attempts_submit_create
+      description: Завершает попытку, проверяет ответы и возвращает подробный результат
+        с аналитикой и дополнительными блоками.
       summary: Отправка попытки на проверку
       parameters:
       - in: path
@@ -228,6 +262,8 @@ paths:
   /api/courses/:
     get:
       operationId: courses_list
+      description: Публичный каталог курсов с краткой информацией, владельцем и количеством
+        опубликованных тестов.
       summary: Список опубликованных курсов
       tags:
       - courses
@@ -247,6 +283,8 @@ paths:
   /api/courses/{id}/:
     get:
       operationId: courses_retrieve
+      description: Возвращает полное описание курса, список опубликованных тестов
+        и объявления.
       summary: Детальная информация о курсе
       parameters:
       - in: path
@@ -270,6 +308,8 @@ paths:
   /api/courses/{id}/analytics/:
     get:
       operationId: courses_analytics_retrieve
+      description: Сводит общую точность по курсу, слабые темы, студентов с рисками
+        и лидерборд.
       summary: Аналитика курса для преподавателя
       parameters:
       - in: path
@@ -292,6 +332,8 @@ paths:
   /api/courses/{id}/enroll/:
     post:
       operationId: courses_enroll_create
+      description: Создает запись студента на опубликованный курс или подтверждает,
+        что запись уже существует.
       summary: Запись студента на курс
       parameters:
       - in: path
@@ -351,6 +393,8 @@ paths:
   /api/me/:
     get:
       operationId: me_retrieve
+      description: Возвращает профиль авторизованного пользователя с ролью, почтой
+        и учебной группой.
       summary: Информация о текущем пользователе
       tags:
       - me
@@ -408,6 +452,8 @@ paths:
   /api/quizzes/{id}/:
     get:
       operationId: quizzes_retrieve
+      description: Возвращает описание теста, вопросы, настройки доступности и эффективные
+        ограничения для текущего пользователя.
       summary: Детальная информация о тесте
       parameters:
       - in: path
@@ -431,6 +477,8 @@ paths:
   /api/quizzes/{id}/attempts/:
     get:
       operationId: quizzes_attempts_retrieve
+      description: Возвращает журнал завершенных попыток с краткой сводкой по результату
+        и индикаторам integrity-контроля.
       summary: Список попыток по тесту для преподавателя
       parameters:
       - in: path
@@ -453,6 +501,7 @@ paths:
   /api/quizzes/{id}/overrides/:
     get:
       operationId: quizzes_overrides_list
+      description: Показывает все персональные условия по тесту для студентов курса.
       summary: Список индивидуальных условий по тесту
       parameters:
       - in: path
@@ -476,6 +525,8 @@ paths:
           description: ''
     post:
       operationId: quizzes_overrides_create
+      description: Позволяет преподавателю выдать студенту дополнительные попытки,
+        время и комментарий по тесту.
       summary: Создание или обновление индивидуальных условий
       parameters:
       - in: path
@@ -490,6 +541,15 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ApiQuizAccessOverrideRequest'
+            examples:
+              ПримерИндивидуальныхУсловий:
+                value:
+                  student_id: 6
+                  extra_time_minutes: 15
+                  extra_attempts: 1
+                  notes: Индивидуальные условия для демонстрации API.
+                  is_active: true
+                summary: Пример индивидуальных условий
           application/x-www-form-urlencoded:
             schema:
               $ref: '#/components/schemas/ApiQuizAccessOverrideRequest'
@@ -516,6 +576,8 @@ paths:
   /api/quizzes/{id}/start/:
     post:
       operationId: quizzes_start_create
+      description: Создает новую попытку или переиспользует уже активную, если студент
+        не завершил предыдущее прохождение.
       summary: Старт попытки по тесту
       parameters:
       - in: path
@@ -1891,6 +1953,9 @@ components:
       in: header
       name: Authorization
       description: Token-based authentication with required prefix "Token"
+servers:
+- url: http://127.0.0.1:8000
+  description: Локальный сервер разработки
 tags:
 - name: auth
   description: Получение токена для работы в Swagger UI и Postman.
