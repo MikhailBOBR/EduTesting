@@ -25,6 +25,20 @@ Swagger после запуска проекта:
 http://127.0.0.1:8000/api/docs/
 ```
 
+## Готовые материалы для Postman
+
+В проект добавлены готовые файлы для импорта:
+
+- [docs/EduTesting.postman_collection.json](</c:/Users/Михаил/Desktop/6semac/KyrsBACK/docs/EduTesting.postman_collection.json>) — коллекция с папками `Auth`, `Student Flow` и `Teacher Flow`;
+- [docs/EduTesting.postman_environment.json](</c:/Users/Михаил/Desktop/6semac/KyrsBACK/docs/EduTesting.postman_environment.json>) — локальное environment с `base_url`, демо-аккаунтами и базовыми переменными.
+
+После импорта обычно достаточно:
+
+1. выбрать environment `EduTesting Local`;
+2. выполнить `Student Token` и `Teacher Token`;
+3. последовательно пройти `Enroll -> Start Attempt -> Save Draft -> Submit Attempt`;
+4. открыть `Course Analytics` под преподавателем.
+
 ## Основные эндпоинты
 
 ### Публичные
@@ -192,3 +206,12 @@ python manage.py runserver
 ### Преподаватель
 
 - `teacher_demo` / `TeacherDemo123!`
+
+## Примечание по demo-id
+
+В environment по умолчанию заданы:
+
+- `course_id = 1`
+- `quiz_id = 1`
+
+Это соответствует базовому демо-сценарию для входного теста по Django в локальной базе. Если после повторного наполнения базы идентификаторы изменятся, их достаточно один раз обновить в environment.

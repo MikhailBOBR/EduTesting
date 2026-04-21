@@ -608,6 +608,8 @@ python manage.py test
 
 - [docs/project_report.md](</c:/Users/Михаил/Desktop/6semac/KyrsBACK/docs/project_report.md>) — анализ предметной области, стек и архитектура;
 - [docs/api_demo.md](</c:/Users/Михаил/Desktop/6semac/KyrsBACK/docs/api_demo.md>) — памятка по Swagger и Postman;
+- [docs/EduTesting.postman_collection.json](</c:/Users/Михаил/Desktop/6semac/KyrsBACK/docs/EduTesting.postman_collection.json>) — готовая коллекция Postman;
+- [docs/EduTesting.postman_environment.json](</c:/Users/Михаил/Desktop/6semac/KyrsBACK/docs/EduTesting.postman_environment.json>) — готовое локальное environment;
 - [schema.yaml](</c:/Users/Михаил/Desktop/6semac/KyrsBACK/schema.yaml>) — OpenAPI-схема API.
 
 Что можно показывать на защите:

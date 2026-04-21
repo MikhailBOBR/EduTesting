@@ -1,0 +1,274 @@
+{
+  "info": {
+    "_postman_id": "84fb9f7b-7f49-4c0d-91d8-4ad3f4d56401",
+    "name": "EduTesting API Demo",
+    "description": "Небольшая коллекция для демонстрации API проекта EduTesting в Postman. Включает авторизацию, студенческий сценарий прохождения теста и преподавательскую аналитику.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "description": "Получение токенов для сценариев студента и преподавателя.",
+      "item": [
+        {
+          "name": "Student Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "if (data.token) {",
+                  "    pm.collectionVariables.set('student_token', data.token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{student_username}}\",\n  \"password\": \"{{student_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{base_url}}/api/auth/token/",
+            "description": "Получает токен студента и автоматически сохраняет его в collection variable `student_token`."
+          },
+          "response": []
+        },
+        {
+          "name": "Teacher Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "if (data.token) {",
+                  "    pm.collectionVariables.set('teacher_token', data.token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{teacher_username}}\",\n  \"password\": \"{{teacher_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{base_url}}/api/auth/token/",
+            "description": "Получает токен преподавателя и автоматически сохраняет его в collection variable `teacher_token`."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Student Flow",
+      "description": "Небольшой полный сценарий: запись на курс, старт попытки, автосохранение, отправка и просмотр результата.",
+      "item": [
+        {
+          "name": "Me",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{auth_prefix}} {{student_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/me/",
+            "description": "Проверка, что токен студента корректен."
+          },
+          "response": []
+        },
+        {
+          "name": "Enroll To Course",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{auth_prefix}} {{student_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/courses/{{course_id}}/enroll/",
+            "description": "Записывает студента на демо-курс."
+          },
+          "response": []
+        },
+        {
+          "name": "Start Attempt",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "if (data.attempt && data.attempt.id) {",
+                  "    pm.environment.set('attempt_id', data.attempt.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{auth_prefix}} {{student_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/quizzes/{{quiz_id}}/start/",
+            "description": "Создает или переиспользует активную попытку и сохраняет `attempt_id` в environment."
+          },
+          "response": []
+        },
+        {
+          "name": "Save Draft",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{auth_prefix}} {{student_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{draft_body}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{base_url}}/api/attempts/{{attempt_id}}/draft/",
+            "description": "Автосохранение промежуточных ответов. В environment уже лежит готовое тело для демо."
+          },
+          "response": []
+        },
+        {
+          "name": "Submit Attempt",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{auth_prefix}} {{student_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{submit_body}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{base_url}}/api/attempts/{{attempt_id}}/submit/",
+            "description": "Отправляет попытку на проверку. В environment задано простое демо-тело с ответами для входного теста."
+          },
+          "response": []
+        },
+        {
+          "name": "Attempt Detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{auth_prefix}} {{student_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/attempts/{{attempt_id}}/",
+            "description": "Возвращает полный отчет по попытке, включая аналитику по темам и сравнение с предыдущей попыткой."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Teacher Flow",
+      "description": "Пара ключевых запросов для преподавателя: аналитика курса и список попыток по тесту.",
+      "item": [
+        {
+          "name": "Course Analytics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{auth_prefix}} {{teacher_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/courses/{{course_id}}/analytics/",
+            "description": "Показывает слабые темы, студентов под риском и лидерборд курса."
+          },
+          "response": []
+        },
+        {
+          "name": "Quiz Attempts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{auth_prefix}} {{teacher_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/quizzes/{{quiz_id}}/attempts/",
+            "description": "Список завершенных попыток по выбранному тесту."
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "student_token",
+      "value": ""
+    },
+    {
+      "key": "teacher_token",
+      "value": ""
+    }
+  ]
+}
