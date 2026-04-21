@@ -4,13 +4,14 @@
 
 {% block content %}
 <section class="page-header page-header--split">
-    <div>
-        <div class="section-kicker">Аналитика преподавателя</div>
+    <div class="page-header__body">
+        <div class="section-kicker">Контроль результатов</div>
         <h1>Попытки по тесту "{{ quiz.title }}"</h1>
-        <p class="muted">{{ quiz.course.title }} • Сводная статистика и ручные комментарии преподавателя.</p>
+        <p class="muted">{{ quiz.course.title }} • журнал завершенных попыток, комментарии и сигналы контроля честности.</p>
     </div>
     <div class="button-row">
         <a class="button button-secondary" href="{% url 'testing:quiz_detail' quiz.pk %}">Назад к тесту</a>
+        <a class="button button-secondary" href="{% url 'testing:course_insights' quiz.course.pk %}">Диагностика курса</a>
     </div>
 </section>
 
@@ -29,15 +30,30 @@
     </article>
     <article class="metric">
         <span class="metric__value">{{ analytics.reviewed_attempts }}</span>
-        <span class="metric__label">Есть комментарии</span>
+        <span class="metric__label">С комментариями</span>
+    </article>
+    <article class="metric">
+        <span class="metric__value">{{ analytics.flagged_attempts }}</span>
+        <span class="metric__label">С флагами внимания</span>
     </article>
     <article class="metric">
         <span class="metric__value">{{ quiz.question_count }}</span>
-        <span class="metric__label">Вопросов</span>
+        <span class="metric__label">Вопросов в тесте</span>
     </article>
 </section>
 
+{% if analytics.flagged_attempts %}
+    <section class="inline-note">
+        В журнале уже есть попытки с дополнительными флагами внимания. Это не блокировка, а быстрый преподавательский сигнал:
+        очень быстрое завершение, идеальный результат за короткое время или резкий скачок между попытками.
+    </section>
+{% endif %}
+
 <section class="panel">
+    <div class="panel__header">
+        <div class="section-kicker">Журнал попыток</div>
+        <h2>Сводная таблица по тесту</h2>
+    </div>
     <div class="table-wrap">
         <table class="data-table">
             <thead>
@@ -48,19 +64,30 @@
                     <th>Длительность</th>
                     <th>Баллы</th>
                     <th>Результат</th>
+                    <th>Контроль</th>
                     <th>Комментарий</th>
                     <th></th>
                 </tr>
             </thead>
             <tbody>
                 {% for attempt in attempts %}
-                    <tr>
+                    <tr class="{% if attempt.integrity_flags_count %}table-row-risk{% endif %}">
                         <td>{{ attempt.student.get_full_name|default:attempt.student.username }}</td>
                         <td>{{ attempt.student.academic_group|default:'—' }}</td>
                         <td>{{ attempt.submitted_at|date:"d.m.Y H:i" }}</td>
                         <td>{{ attempt.duration_minutes }} мин.</td>
                         <td>{{ attempt.score_points }}/{{ attempt.total_points }}</td>
                         <td>{{ attempt.score_percent }}%</td>
+                        <td>
+                            {% if attempt.integrity_flags_count %}
+                                <span class="badge{% if attempt.integrity_risk_level == 'high' %} badge-danger{% else %} badge-warning{% endif %}">
+                                    {{ attempt.integrity_risk_label }}
+                                </span><br>
+                                <span class="muted">{{ attempt.integrity_flags_count }} флаг.</span>
+                            {% else %}
+                                <span class="badge badge-success">Без флагов</span>
+                            {% endif %}
+                        </td>
                         <td>
                             {% if attempt.review %}
                                 <span class="badge badge-success">Есть</span>
@@ -75,11 +102,40 @@
                     </tr>
                 {% empty %}
                     <tr>
-                        <td colspan="8">По этому тесту пока нет завершенных попыток.</td>
+                        <td colspan="9">По этому тесту пока нет завершенных попыток.</td>
                     </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
 </section>
+
+{% if analytics.flagged_attempts %}
+    <section class="panel">
+        <div class="panel__header">
+            <div class="section-kicker">Флаги внимания</div>
+            <h2>Какие попытки стоит проверить вручную</h2>
+        </div>
+        <div class="card-list">
+            {% for attempt in attempts %}
+                {% if attempt.integrity_flags_count %}
+                    <article class="card">
+                        <div class="tag-row">
+                            <span class="badge{% if attempt.integrity_risk_level == 'high' %} badge-danger{% else %} badge-warning{% endif %}">
+                                {{ attempt.integrity_risk_label }}
+                            </span>
+                            <span class="meta-chip">{{ attempt.submitted_at|date:"d.m.Y H:i" }}</span>
+                        </div>
+                        <h3>{{ attempt.student.get_full_name|default:attempt.student.username }}</h3>
+                        <p class="muted">Результат: {{ attempt.score_percent }}% • {{ attempt.duration_minutes }} мин.</p>
+                        {% for flag in attempt.integrity_flags_preview|slice:":2" %}
+                            <p class="muted">{{ flag.title }}: {{ flag.message }}</p>
+                        {% endfor %}
+                        <a href="{% url 'testing:attempt_result' attempt.pk %}">Открыть подробный отчет</a>
+                    </article>
+                {% endif %}
+            {% endfor %}
+        </div>
+    </section>
+{% endif %}
 {% endblock %}

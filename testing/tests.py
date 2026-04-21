@@ -11,10 +11,14 @@ from accounts.models import User, UserRole
 
 from .analytics import (
     build_attempt_comparison,
+    build_attempt_integrity_flags,
+    build_attempt_unlocked_achievements,
     build_attempt_topic_insights,
     build_course_attention_students,
+    build_course_integrity_overview,
     build_course_leaderboard,
     build_course_topic_diagnostics,
+    build_student_achievements,
     build_student_topic_diagnostics,
 )
 from .forms import AttemptAppealReviewForm, AttemptForm, JoinCourseForm, QuizForm
@@ -257,6 +261,44 @@ class TestingBaseMixin:
             extra_attempts=extra_attempts,
             is_active=is_active,
         )
+
+    def create_simple_quiz(self, title='Bonus Quiz', topic='Practice', points=1):
+        quiz = Quiz.objects.create(
+            course=self.course,
+            title=title,
+            description='Additional quiz for analytics and achievements tests.',
+            instructions='Choose the correct answer.',
+            time_limit_minutes=15,
+            passing_score=60,
+            max_attempts=3,
+            available_from=timezone.now() - timedelta(days=1),
+            available_until=timezone.now() + timedelta(days=1),
+            show_correct_answers=True,
+            is_published=True,
+        )
+        question = Question.objects.create(
+            quiz=quiz,
+            text=f'{title} question',
+            topic=topic,
+            explanation='Single correct answer.',
+            question_type=QuestionType.SINGLE,
+            difficulty='basic',
+            points=points,
+            order=1,
+        )
+        Choice.objects.create(
+            question=question,
+            text='Wrong answer',
+            is_correct=False,
+            order=1,
+        )
+        correct_choice = Choice.objects.create(
+            question=question,
+            text='Correct answer',
+            is_correct=True,
+            order=2,
+        )
+        return quiz, {question.id: {correct_choice.id}}
 
 
 class ModelAndFormTests(TestingBaseMixin, TestCase):
@@ -526,6 +568,49 @@ class AnalyticsTests(TestingBaseMixin, TestCase):
         self.assertEqual(comparison['correct_answers_delta'], 1)
         self.assertEqual(comparison['improved_topics'][0]['topic'], 'ORM')
 
+    def test_build_attempt_integrity_flags_marks_fast_perfect_attempt(self):
+        attempt = self.create_submitted_attempt(student=self.student, answers_mapping=self.correct_answers(), minutes_ago=1)
+
+        flags = build_attempt_integrity_flags(attempt)
+
+        self.assertTrue(flags)
+        self.assertEqual(flags[0]['code'], 'perfect_speed')
+
+    def test_build_course_integrity_overview_collects_flagged_attempts(self):
+        flagged_attempt = self.create_submitted_attempt(student=self.student, answers_mapping=self.correct_answers(), minutes_ago=1)
+
+        overview = build_course_integrity_overview(self.course)
+
+        self.assertEqual(overview['flagged_attempts_count'], 1)
+        self.assertEqual(overview['high_risk_attempts_count'], 1)
+        self.assertEqual(overview['rows'][0]['attempt'], flagged_attempt)
+
+    def test_build_student_achievements_returns_expected_badges(self):
+        self.create_submitted_attempt(student=self.student, answers_mapping=self.partial_answers())
+        improved_attempt = self.create_submitted_attempt(student=self.student, answers_mapping=self.correct_answers())
+        self.create_submitted_attempt(student=self.student, quiz=self.hidden_quiz, answers_mapping=self.hidden_answers())
+        extra_quiz, extra_answers = self.create_simple_quiz(title='Backend Growth', topic='Growth')
+        self.create_submitted_attempt(student=self.student, quiz=extra_quiz, answers_mapping=extra_answers)
+
+        achievements = build_student_achievements(self.student, course=self.course)
+        codes = {achievement['code'] for achievement in achievements}
+
+        self.assertIn('first_finish', codes)
+        self.assertIn('perfect_score', codes)
+        self.assertIn('three_passes', codes)
+        self.assertIn('strong_comeback', codes)
+        self.assertIn(improved_attempt.pk, {achievement['attempt'].pk for achievement in achievements})
+
+    def test_build_attempt_unlocked_achievements_returns_attempt_specific_badges(self):
+        self.create_submitted_attempt(student=self.student, answers_mapping=self.partial_answers())
+        improved_attempt = self.create_submitted_attempt(student=self.student, answers_mapping=self.correct_answers())
+
+        achievements = build_attempt_unlocked_achievements(improved_attempt)
+        codes = {achievement['code'] for achievement in achievements}
+
+        self.assertIn('perfect_score', codes)
+        self.assertIn('strong_comeback', codes)
+
 
 class CourseAndDashboardViewTests(TestingBaseMixin, TestCase):
     def test_course_list_hides_unpublished_course_for_guest(self):
@@ -606,6 +691,24 @@ class CourseAndDashboardViewTests(TestingBaseMixin, TestCase):
         self.assertTrue(response.context['attention_students'])
         self.assertEqual(response.context['leaderboard'][0]['student'], self.student)
 
+    def test_teacher_course_insights_includes_integrity_overview(self):
+        self.create_submitted_attempt(student=self.student, answers_mapping=self.correct_answers(), minutes_ago=1)
+        self.client.force_login(self.teacher)
+
+        response = self.client.get(reverse('testing:course_insights', args=[self.course.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['integrity_overview']['flagged_attempts_count'], 1)
+
+    def test_student_course_insights_includes_course_achievements(self):
+        self.create_submitted_attempt(student=self.student, answers_mapping=self.correct_answers())
+        self.client.force_login(self.student)
+
+        response = self.client.get(reverse('testing:course_insights', args=[self.course.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context['course_achievements'])
+
     def test_unenrolled_student_cannot_open_course_insights_page(self):
         self.client.force_login(self.other_student)
 
@@ -624,9 +727,11 @@ class CourseAndDashboardViewTests(TestingBaseMixin, TestCase):
         self.assertEqual(response.context['summary']['completed_quizzes'], 1)
         self.assertEqual(response.context['summary']['average_score'], 100)
         self.assertEqual(response.context['summary']['pending_quizzes'], 1)
+        self.assertEqual(response.context['summary']['achievements'], 2)
+        self.assertTrue(response.context['recent_achievements'])
 
     def test_teacher_dashboard_shows_management_summary(self):
-        self.create_submitted_attempt(student=self.student)
+        attempt = self.create_submitted_attempt(student=self.student, answers_mapping=self.correct_answers(), minutes_ago=1)
         self.client.force_login(self.teacher)
 
         response = self.client.get(reverse('testing:dashboard'))
@@ -636,6 +741,8 @@ class CourseAndDashboardViewTests(TestingBaseMixin, TestCase):
         self.assertEqual(response.context['summary']['students'], 1)
         self.assertEqual(response.context['summary']['attempts'], 1)
         self.assertEqual(response.context['summary']['average_score'], 100)
+        self.assertEqual(response.context['summary']['flagged_attempts'], 1)
+        self.assertEqual(response.context['suspicious_attempts'][0]['attempt'], attempt)
 
     def test_dashboard_and_notification_center_show_recent_notifications(self):
         attempt = self.create_submitted_attempt(student=self.student)
@@ -920,6 +1027,24 @@ class StudentFlowTests(TestingBaseMixin, TestCase):
         self.assertEqual(response.context['attempt_comparison']['score_delta'], 60)
         self.assertEqual(response.context['attempt_comparison']['improved_topics'][0]['topic'], 'ORM')
 
+    def test_attempt_result_includes_unlocked_achievements(self):
+        attempt = self.create_submitted_attempt(student=self.student, answers_mapping=self.correct_answers())
+        self.client.force_login(self.student)
+
+        response = self.client.get(reverse('testing:attempt_result', args=[attempt.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context['unlocked_achievements'])
+
+    def test_teacher_attempt_result_includes_integrity_flags(self):
+        attempt = self.create_submitted_attempt(student=self.student, answers_mapping=self.correct_answers(), minutes_ago=1)
+        self.client.force_login(self.teacher)
+
+        response = self.client.get(reverse('testing:attempt_result', args=[attempt.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context['integrity_flags'])
+
     def test_student_cannot_view_other_students_attempt(self):
         Enrollment.objects.create(course=self.course, student=self.other_student)
         attempt = self.create_submitted_attempt(student=self.other_student)
@@ -1058,7 +1183,7 @@ class TeacherManagementTests(TestingBaseMixin, TestCase):
 
     def test_teacher_can_view_quiz_attempts_analytics(self):
         Enrollment.objects.create(course=self.course, student=self.other_student)
-        self.create_submitted_attempt(student=self.student)
+        self.create_submitted_attempt(student=self.student, answers_mapping=self.correct_answers(), minutes_ago=1)
         self.create_submitted_attempt(student=self.other_student, answers_mapping=self.partial_answers())
         self.client.force_login(self.teacher)
 
@@ -1068,6 +1193,8 @@ class TeacherManagementTests(TestingBaseMixin, TestCase):
         self.assertEqual(response.context['analytics']['attempts'], 2)
         self.assertEqual(response.context['analytics']['average_score'], 70)
         self.assertEqual(response.context['analytics']['pass_rate'], 50)
+        self.assertEqual(response.context['analytics']['flagged_attempts'], 1)
+        self.assertTrue(any(attempt.integrity_flags_count for attempt in response.context['attempts']))
 
     def test_teacher_can_view_student_attempt_result_for_owned_course(self):
         attempt = self.create_submitted_attempt(student=self.student)
@@ -1219,6 +1346,16 @@ class ApiTests(TestingBaseMixin, TestCase):
         self.assertEqual(data[0]['id'], self.course.pk)
         self.assertEqual(data[0]['my_role'], UserRole.STUDENT)
 
+    def test_api_my_achievements_returns_computed_badges(self):
+        self.create_submitted_attempt(student=self.student, answers_mapping=self.correct_answers())
+
+        response = self.client.get(reverse('testing_api:my_achievements'), **self.auth_headers(self.student))
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data)
+        self.assertIn('perfect_score', {item['code'] for item in data})
+
     def test_api_student_can_enroll_start_and_submit_attempt(self):
         Enrollment.objects.filter(course=self.course, student=self.student).delete()
 
@@ -1294,6 +1431,19 @@ class ApiTests(TestingBaseMixin, TestCase):
         payload = response.json()
         self.assertEqual(payload['comparison']['score_delta'], 60)
         self.assertEqual(payload['comparison']['improved_topics'][0]['topic'], 'ORM')
+        self.assertTrue(payload['new_achievements'])
+
+    def test_api_teacher_attempt_detail_includes_integrity_flags(self):
+        attempt = self.create_submitted_attempt(student=self.student, answers_mapping=self.correct_answers(), minutes_ago=1)
+
+        response = self.client.get(
+            reverse('testing_api:attempt_detail', args=[attempt.pk]),
+            **self.auth_headers(self.teacher),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload['integrity_flags'])
 
     def test_api_teacher_can_create_quiz_override(self):
         response = self.client.post(
@@ -1371,8 +1521,22 @@ class ApiTests(TestingBaseMixin, TestCase):
         self.assertTrue(payload['attention_students'])
         self.assertTrue(payload['leaderboard'])
 
+    def test_api_teacher_can_view_course_integrity(self):
+        self.create_submitted_attempt(student=self.student, answers_mapping=self.correct_answers(), minutes_ago=1)
+
+        response = self.client.get(
+            reverse('testing_api:course_integrity', args=[self.course.pk]),
+            **self.auth_headers(self.teacher),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload['flagged_attempts_count'], 1)
+        self.assertEqual(payload['high_risk_attempts_count'], 1)
+        self.assertTrue(payload['attempts'])
+
     def test_api_teacher_can_view_quiz_attempts(self):
-        self.create_submitted_attempt(student=self.student)
+        self.create_submitted_attempt(student=self.student, answers_mapping=self.correct_answers(), minutes_ago=1)
 
         response = self.client.get(
             reverse('testing_api:quiz_attempts', args=[self.quiz.pk]),
@@ -1383,6 +1547,8 @@ class ApiTests(TestingBaseMixin, TestCase):
         payload = response.json()
         self.assertEqual(payload['quiz']['id'], self.quiz.pk)
         self.assertEqual(len(payload['attempts']), 1)
+        self.assertEqual(payload['attempts'][0]['integrity_flags_count'], 1)
+        self.assertEqual(payload['attempts'][0]['highest_integrity_severity'], 'high')
 
     def test_api_student_cannot_open_teacher_analytics(self):
         response = self.client.get(

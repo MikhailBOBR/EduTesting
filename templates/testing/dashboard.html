@@ -44,6 +44,10 @@
             <span class="metric__value">{{ summary.pending_appeals }}</span>
             <span class="metric__label">Открытых апелляций</span>
         </article>
+        <article class="metric">
+            <span class="metric__value">{{ summary.flagged_attempts }}</span>
+            <span class="metric__label">Подозрительных попыток</span>
+        </article>
     </section>
 
     <section class="grid-2">
@@ -62,6 +66,7 @@
                             <th>Тесты</th>
                             <th>Средний балл</th>
                             <th>Проходимость</th>
+                            <th>Флаги</th>
                             <th></th>
                         </tr>
                     </thead>
@@ -76,11 +81,12 @@
                                 <td>{{ row.quizzes }}</td>
                                 <td>{{ row.average_score }}%</td>
                                 <td>{{ row.completion_rate }}%</td>
+                                <td>{{ row.flagged_attempts }}</td>
                                 <td><a href="{% url 'testing:course_detail' row.course.pk %}">Открыть</a></td>
                             </tr>
                         {% empty %}
                             <tr>
-                                <td colspan="6">Пока нет созданных курсов.</td>
+                                <td colspan="7">Пока нет созданных курсов.</td>
                             </tr>
                         {% endfor %}
                     </tbody>
@@ -100,6 +106,11 @@
                         <div class="tag-row">
                             <span class="badge">{{ attempt.student.academic_group|default:"Без группы" }}</span>
                             <span class="meta-chip">{{ attempt.submitted_at|date:"d.m.Y H:i" }}</span>
+                            {% if attempt.integrity_flags_count %}
+                                <span class="badge{% if attempt.integrity_risk_level == 'high' %} badge-danger{% else %} badge-warning{% endif %}">
+                                    {{ attempt.integrity_flags_count }} флаг
+                                </span>
+                            {% endif %}
                         </div>
                         <h3>{{ attempt.student.get_full_name|default:attempt.student.username }}</h3>
                         <p class="muted">{{ attempt.quiz.course.title }} • {{ attempt.quiz.title }}</p>
@@ -111,6 +122,34 @@
                 {% endfor %}
             </div>
         </article>
+    </section>
+
+    <section class="panel">
+        <div class="panel__header">
+            <div class="section-kicker">Контроль</div>
+            <h2>Подозрительные попытки</h2>
+            <p>Попытки с нетипично быстрым выполнением или резким скачком результата.</p>
+        </div>
+        <div class="card-list">
+            {% for row in suspicious_attempts %}
+                <article class="card">
+                    <div class="tag-row">
+                        <span class="badge{% if row.risk_level == 'high' %} badge-danger{% else %} badge-warning{% endif %}">
+                            {{ row.risk_label }}
+                        </span>
+                        <span class="meta-chip">{{ row.attempt.submitted_at|date:"d.m.Y H:i" }}</span>
+                    </div>
+                    <h3>{{ row.attempt.student.get_full_name|default:row.attempt.student.username }}</h3>
+                    <p class="muted">{{ row.attempt.quiz.course.title }} • {{ row.attempt.quiz.title }}</p>
+                    {% for flag in row.flags %}
+                        <p class="muted">{{ flag.title }}: {{ flag.message }}</p>
+                    {% endfor %}
+                    <a href="{% url 'testing:attempt_result' row.attempt.pk %}">Открыть отчет</a>
+                </article>
+            {% empty %}
+                <div class="empty-state">Пока нет попыток с дополнительными флагами внимания.</div>
+            {% endfor %}
+        </div>
     </section>
 
     <section class="panel">
@@ -180,6 +219,10 @@
         <article class="metric">
             <span class="metric__value">{{ summary.open_appeals }}</span>
             <span class="metric__label">Открытых апелляций</span>
+        </article>
+        <article class="metric">
+            <span class="metric__value">{{ summary.achievements }}</span>
+            <span class="metric__label">Достижений</span>
         </article>
     </section>
 
@@ -274,6 +317,29 @@
 
     <section class="panel">
         <div class="panel__header">
+            <div class="section-kicker">Достижения</div>
+            <h2>Что уже закрыто</h2>
+        </div>
+        <div class="card-list">
+            {% for achievement in recent_achievements %}
+                <article class="card">
+                    <div class="tag-row">
+                        <span class="badge {{ achievement.badge_class|default:'' }}">{{ achievement.level_label }}</span>
+                        <span class="meta-chip">{{ achievement.course.title }}</span>
+                    </div>
+                    <h3>{{ achievement.title }}</h3>
+                    <p class="muted">{{ achievement.description }}</p>
+                    <p class="muted">{{ achievement.awarded_at|date:"d.m.Y H:i" }}</p>
+                    <a href="{% url 'testing:attempt_result' achievement.attempt.pk %}">Открыть связанную попытку</a>
+                </article>
+            {% empty %}
+                <div class="empty-state">Достижения появятся после завершенных попыток и роста результатов.</div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="panel">
+        <div class="panel__header">
             <div class="section-kicker">Апелляции</div>
             <h2>Ваши обращения по попыткам</h2>
         </div>
@@ -318,34 +384,4 @@
         </div>
     </section>
 {% endif %}
-
-<section class="panel">
-    <div class="panel__header">
-        <div class="section-kicker">Уведомления</div>
-        <h2>Последние события</h2>
-        <p>Новые объявления, попытки, комментарии, апелляции и изменения по тестам.</p>
-    </div>
-    <div class="button-row">
-        <a class="button button-secondary" href="{% url 'testing:notifications' %}">Открыть все уведомления</a>
-    </div>
-    <div class="card-list">
-        {% for notification in recent_notifications %}
-            <article class="card notification-card{% if notification.is_read %} notification-card--read{% endif %}">
-                <div class="tag-row">
-                    <span class="badge">{{ notification.get_category_display }}</span>
-                    <span class="meta-chip">{{ notification.created_at|date:"d.m.Y H:i" }}</span>
-                </div>
-                <h3>{{ notification.title }}</h3>
-                {% if notification.message %}
-                    <p class="muted">{{ notification.message }}</p>
-                {% endif %}
-                {% if notification.action_url %}
-                    <a href="{{ notification.action_url }}">Открыть</a>
-                {% endif %}
-            </article>
-        {% empty %}
-            <div class="empty-state">Новых уведомлений пока нет.</div>
-        {% endfor %}
-    </div>
-</section>
 {% endblock %}

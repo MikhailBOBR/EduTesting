@@ -9,9 +9,9 @@
         <h1>{{ course.title }}</h1>
         <p class="muted">
             {% if can_manage %}
-                Сводка по темам, студентам и динамике успеваемости.
+                Сводка по темам, студентам, рейтингу и контролю подозрительных попыток.
             {% else %}
-                Личная диагностика по темам и рекомендации по дальнейшей подготовке.
+                Личная диагностика по темам, достижениям и следующему полезному шагу по курсу.
             {% endif %}
         </p>
     </div>
@@ -25,7 +25,8 @@
 
 {% if can_manage %}
     <section class="inline-note">
-        Рейтинг строится по лучшим завершенным попыткам, а выгрузка `CSV` содержит сводный журнал по всему курсу.
+        Аналитика собрана по завершенным попыткам. Отдельный блок контроля честности помогает быстро выделить случаи,
+        где стоит посмотреть попытку вручную до выставления финальных комментариев.
     </section>
 
     <section class="stats-strip">
@@ -43,7 +44,11 @@
         </article>
         <article class="metric">
             <span class="metric__value">{{ attention_students|length }}</span>
-            <span class="metric__label">Студентов</span>
+            <span class="metric__label">Студентов в курсе</span>
+        </article>
+        <article class="metric">
+            <span class="metric__value">{{ integrity_overview.flagged_attempts_count }}</span>
+            <span class="metric__label">Подозрительных попыток</span>
         </article>
         <article class="metric">
             <span class="metric__value">{{ topic_diagnostics.overall_accuracy }}%</span>
@@ -148,6 +153,59 @@
 
     <section class="panel">
         <div class="panel__header">
+            <div class="section-kicker">Контроль честности</div>
+            <h2>Попытки с флагами внимания</h2>
+            <p>
+                Всего отмечено {{ integrity_overview.flagged_attempts_count }} попыток,
+                из них {{ integrity_overview.high_risk_attempts_count }} с высоким приоритетом проверки.
+            </p>
+        </div>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Студент</th>
+                        <th>Тест</th>
+                        <th>Завершено</th>
+                        <th>Результат</th>
+                        <th>Риск</th>
+                        <th>Флаги</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in integrity_overview.rows %}
+                        <tr class="{% if row.risk_level == 'high' %}table-row-risk{% endif %}">
+                            <td>{{ row.attempt.student.get_full_name|default:row.attempt.student.username }}</td>
+                            <td>{{ row.attempt.quiz.title }}</td>
+                            <td>{{ row.attempt.submitted_at|date:"d.m.Y H:i" }}</td>
+                            <td>{{ row.attempt.score_percent }}% • {{ row.attempt.duration_minutes }} мин.</td>
+                            <td>
+                                {% if row.risk_level == 'high' %}
+                                    <span class="badge badge-danger">{{ row.risk_label }}</span>
+                                {% else %}
+                                    <span class="badge badge-warning">{{ row.risk_label }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% for flag in row.flags|slice:":2" %}
+                                    <div>{{ flag.title }}</div>
+                                {% endfor %}
+                            </td>
+                            <td><a href="{% url 'testing:attempt_result' row.attempt.pk %}">Отчет</a></td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="7">Сейчас нет попыток с дополнительными флагами внимания.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="panel">
+        <div class="panel__header">
             <div class="section-kicker">Контроль группы</div>
             <h2>Студенты, которым нужно внимание</h2>
         </div>
@@ -195,7 +253,7 @@
     </section>
 {% else %}
     <section class="inline-note">
-        Здесь собраны ваши слабые темы, общий прогресс по курсу и короткие рекомендации по следующему шагу.
+        Здесь собраны ваши слабые и сильные темы, следующий полезный тест и достижения, которые уже удалось открыть в этом курсе.
     </section>
 
     <section class="stats-strip">
@@ -219,13 +277,17 @@
             <span class="metric__value">{{ student_progress.pending_quizzes }}</span>
             <span class="metric__label">Осталось тестов</span>
         </article>
+        <article class="metric">
+            <span class="metric__value">{{ course_achievements|length }}</span>
+            <span class="metric__label">Достижений по курсу</span>
+        </article>
     </section>
 
     <section class="grid-2">
         <article class="panel">
             <div class="panel__header">
                 <div class="section-kicker">Рекомендации</div>
-                <h2>Что повторить</h2>
+                <h2>Что повторить дальше</h2>
             </div>
             <div class="card-list">
                 {% for recommendation in topic_diagnostics.recommendations %}
@@ -275,6 +337,28 @@
                 </table>
             </div>
         </article>
+    </section>
+
+    <section class="panel">
+        <div class="panel__header">
+            <div class="section-kicker">Достижения</div>
+            <h2>Что уже удалось закрыть</h2>
+        </div>
+        <div class="card-list">
+            {% for achievement in course_achievements %}
+                <article class="card">
+                    <div class="tag-row">
+                        <span class="badge {{ achievement.badge_class|default:'' }}">{{ achievement.level_label }}</span>
+                        <span class="meta-chip">{{ achievement.awarded_at|date:"d.m.Y H:i" }}</span>
+                    </div>
+                    <h3>{{ achievement.title }}</h3>
+                    <p class="muted">{{ achievement.description }}</p>
+                    <a href="{% url 'testing:attempt_result' achievement.attempt.pk %}">Открыть связанную попытку</a>
+                </article>
+            {% empty %}
+                <div class="empty-state">Достижения по курсу появятся после завершенных попыток и роста результатов.</div>
+            {% endfor %}
+        </div>
     </section>
 
     <section class="panel">

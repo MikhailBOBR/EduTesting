@@ -1,25 +1,23 @@
 # Демонстрация API
 
-## Назначение
+## Что покрывает API
 
-В проекте реализован **полноценный, но не перегруженный REST API** для демонстрации серверной части через `Swagger` и `Postman`.
+API в EduTesting дополняет основной web-интерфейс и позволяет показать ключевые серверные сценарии:
 
-API не заменяет основной web-интерфейс на `Django Templates`, а дополняет его и позволяет показать ключевые серверные сценарии:
+- авторизацию по токену;
+- поток студента: запись на курс, старт попытки, автосохранение, отправка и просмотр результата;
+- вычисляемые достижения студента;
+- поток преподавателя: аналитика курса, индивидуальные условия, журнал попыток и апелляции;
+- контроль подозрительных попыток по курсу.
 
-- публичные данные сервиса;
-- авторизацию пользователя;
-- сценарий студента;
-- сценарий преподавателя;
-- корректную OpenAPI-документацию.
+## Основные адреса
 
-## Базовые адреса
+- Swagger UI: `GET /api/docs/`
+- OpenAPI schema: `GET /api/schema/`
+- токен: `POST /api/auth/token/`
+- текущий пользователь: `GET /api/me/`
 
-- `GET /api/docs/` — Swagger UI
-- `GET /api/schema/` — OpenAPI schema
-- `POST /api/auth/token/` — получение токена
-- `GET /api/me/` — текущий пользователь
-
-Swagger после запуска проекта:
+Локальный адрес после запуска проекта:
 
 ```text
 http://127.0.0.1:8000/api/docs/
@@ -27,91 +25,64 @@ http://127.0.0.1:8000/api/docs/
 
 ## Готовые материалы для Postman
 
-В проект добавлены готовые файлы для импорта:
+В проекте уже подготовлены файлы:
 
-- [docs/EduTesting.postman_collection.json](</c:/Users/Михаил/Desktop/6semac/KyrsBACK/docs/EduTesting.postman_collection.json>) — коллекция с папками `Auth`, `Student Flow` и `Teacher Flow`;
-- [docs/EduTesting.postman_environment.json](</c:/Users/Михаил/Desktop/6semac/KyrsBACK/docs/EduTesting.postman_environment.json>) — локальное environment с `base_url`, демо-аккаунтами и базовыми переменными.
+- [docs/EduTesting.postman_collection.json](</c:/Users/Михаил/Desktop/6semac/KyrsBACK/docs/EduTesting.postman_collection.json>)
+- [docs/EduTesting.postman_environment.json](</c:/Users/Михаил/Desktop/6semac/KyrsBACK/docs/EduTesting.postman_environment.json>)
 
-После импорта обычно достаточно:
+Что есть внутри коллекции:
 
-1. выбрать environment `EduTesting Local`;
-2. выполнить `Student Token` и `Teacher Token`;
-3. последовательно пройти `Enroll -> Start Attempt -> Save Draft -> Submit Attempt`;
-4. открыть `Course Analytics` под преподавателем.
+- папка `Auth`
+- папка `Student Flow`
+- папка `Teacher Flow`
+- автоматическое сохранение `student_token`
+- автоматическое сохранение `teacher_token`
+- автоматическое сохранение `attempt_id`
+- готовые тела запросов для `draft`, `submit`, `appeal`, `override`
 
-## Основные эндпоинты
+## Что показать в Swagger
 
-### Публичные
+Минимальный сильный сценарий:
 
-- `GET /api/stats/`
-- `GET /api/courses/`
-- `GET /api/courses/<id>/`
-- `GET /api/quizzes/<id>/`
+1. `POST /api/auth/token/`
+2. `POST /api/quizzes/{id}/start/`
+3. `POST /api/attempts/{id}/draft/`
+4. `POST /api/attempts/{id}/submit/`
+5. `GET /api/my/achievements/`
+6. `GET /api/courses/{id}/analytics/`
+7. `GET /api/courses/{id}/integrity/`
 
-### Авторизованные
+Особенно хорошо смотрятся:
 
-- `POST /api/auth/token/`
-- `GET /api/me/`
-- `GET /api/my/courses/`
+- `GET /api/my/achievements/` — вычисляемые достижения без отдельной сущности в БД;
+- `GET /api/courses/{id}/integrity/` — преподавательский контроль подозрительных попыток;
+- `GET /api/attempts/{id}/` — результат попытки, сравнение с прошлой попыткой и новые достижения;
+- `GET /api/courses/{id}/analytics/` — тема курса, проблемные студенты и лидерборд.
+
+## Что показать в Postman
 
 ### Сценарий студента
 
-- `POST /api/courses/<id>/enroll/`
-- `POST /api/quizzes/<id>/start/`
-- `POST /api/attempts/<id>/draft/`
-- `POST /api/attempts/<id>/submit/`
-- `GET /api/attempts/<id>/`
-- `POST /api/attempts/<id>/appeal/`
+1. `POST /api/auth/token/`
+2. `GET /api/me/`
+3. `POST /api/courses/{id}/enroll/`
+4. `POST /api/quizzes/{id}/start/`
+5. `POST /api/attempts/{id}/draft/`
+6. `POST /api/attempts/{id}/submit/`
+7. `GET /api/attempts/{id}/`
+8. `GET /api/my/achievements/`
+9. `POST /api/attempts/{id}/appeal/`
 
 ### Сценарий преподавателя
 
-- `GET /api/courses/<id>/analytics/`
-- `GET /api/quizzes/<id>/attempts/`
-- `POST /api/quizzes/<id>/overrides/`
-- `POST /api/appeals/<id>/review/`
+1. `POST /api/auth/token/`
+2. `GET /api/courses/{id}/analytics/`
+3. `GET /api/courses/{id}/integrity/`
+4. `GET /api/quizzes/{id}/attempts/`
+5. `POST /api/quizzes/{id}/overrides/`
+6. `POST /api/appeals/{id}/review/`
 
-## Что показывать в Postman
-
-Для демонстрации достаточно 9-11 скриншотов.
-
-### Вариант последовательности
-
-1. `POST /api/auth/token/` под студентом  
-   Показывает успешную авторизацию и получение токена.
-
-2. `GET /api/me/`  
-   Показывает, что токен работает и API определяет пользователя.
-
-3. `POST /api/courses/<id>/enroll/`  
-   Демонстрирует запись студента на курс.
-
-4. `POST /api/quizzes/<id>/start/`  
-   Демонстрирует создание попытки.
-
-5. `POST /api/attempts/<id>/draft/`  
-   Демонстрирует автосохранение промежуточных ответов.
-
-6. `POST /api/attempts/<id>/submit/`  
-   Демонстрирует отправку ответов и получение результата.
-
-7. `GET /api/attempts/<id>/`  
-   Показывает подробный отчет по попытке, ответы, аналитику по темам и сравнение с предыдущей попыткой.
-
-8. `POST /api/attempts/<id>/appeal/`  
-   Показывает дополнительный backend-сценарий: студент может подать апелляцию по завершенной попытке.
-
-9. `POST /api/quizzes/<id>/overrides/` под преподавателем  
-   Демонстрирует выдачу индивидуальных условий по тесту: дополнительное время и попытки.
-
-10. `GET /api/courses/<id>/analytics/` под преподавателем  
-   Показывает аналитику курса, рейтинг и список студентов, которым нужно внимание.
-
-11. `POST /api/appeals/<id>/review/` под преподавателем  
-   Показывает, что преподаватель может рассмотреть апелляцию и вернуть решение через API.
-
-## Пример авторизации в Postman
-
-### Шаг 1. Получить токен
+## Пример авторизации
 
 Запрос:
 
@@ -120,8 +91,6 @@ POST /api/auth/token/
 Content-Type: application/json
 ```
 
-Тело:
-
 ```json
 {
   "username": "student_demo",
@@ -129,23 +98,7 @@ Content-Type: application/json
 }
 ```
 
-Ответ:
-
-```json
-{
-  "token": "ваш_токен",
-  "user": {
-    "id": 4,
-    "username": "student_demo",
-    "full_name": "Илья Кузнецов",
-    "role": "student",
-    "email": "student@example.com",
-    "academic_group": "ИС-21"
-  }
-}
-```
-
-### Шаг 2. Передавать токен в заголовке
+После ответа токен передается так:
 
 ```http
 Authorization: Token ваш_токен
@@ -185,39 +138,10 @@ Authorization: Token ваш_токен
 }
 ```
 
-## Что показывать в Swagger
-
-Для `Swagger` удобно сделать 4 скриншота:
-
-1. Главная страница `Swagger UI` со всеми доступными методами.
-2. Блок авторизации `POST /api/auth/token/`.
-3. Студенческий сценарий: `POST /api/quizzes/<id>/start/` или `POST /api/attempts/<id>/draft/`.
-4. Преподавательский сценарий: `GET /api/courses/<id>/analytics/`.
-
-## Готовое описание API
-
-При необходимости можно использовать такое описание:
-
-> Для дополнительной демонстрации работоспособности серверной части в проекте реализован REST API с OpenAPI-документацией. Тестирование API выполнялось через Swagger UI и Postman. API поддерживает как публичные запросы на получение данных, так и авторизованные сценарии студента и преподавателя: получение токена, запись на курс, запуск, автосохранение и отправку попытки, просмотр результатов, подачу апелляции, выдачу индивидуальных условий по тесту и просмотр аналитики курса.
-
-## Как запустить
-
-```bash
-pip install -r requirements.txt
-python manage.py migrate
-python manage.py seed_demo_data
-python manage.py runserver
-```
-
 ## Тестовые аккаунты для API
 
-### Студент
-
-- `student_demo` / `StudentDemo123!`
-
-### Преподаватель
-
-- `teacher_demo` / `TeacherDemo123!`
+- студент: `student_demo` / `StudentDemo123!`
+- преподаватель: `teacher_demo` / `TeacherDemo123!`
 
 ## Примечание по demo-id
 
@@ -227,4 +151,4 @@ python manage.py runserver
 - `quiz_id = 1`
 - `override_student_id = 6`
 
-Это соответствует базовому демо-сценарию для входного теста по Django в локальной базе. Если после повторного наполнения базы идентификаторы изменятся, их достаточно один раз обновить в environment.
+Если после повторного наполнения базы идентификаторы изменятся, достаточно обновить их один раз в Postman environment.

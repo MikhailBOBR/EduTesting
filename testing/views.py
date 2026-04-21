@@ -16,11 +16,15 @@ from accounts.mixins import StudentRequiredMixin, TeacherRequiredMixin
 
 from .analytics import (
     build_attempt_comparison,
+    build_attempt_integrity_flags,
+    build_attempt_unlocked_achievements,
     build_attempt_topic_insights,
     build_course_attention_students,
     build_course_gradebook,
+    build_course_integrity_overview,
     build_course_leaderboard,
     build_course_topic_diagnostics,
+    build_student_achievements,
     build_student_topic_diagnostics,
 )
 from .forms import (
@@ -121,6 +125,32 @@ def build_teacher_student_rows(course):
     return rows
 
 
+def enrich_attempt_with_integrity(attempt):
+    flags = build_attempt_integrity_flags(attempt)
+    attempt.integrity_flags_preview = flags
+    attempt.integrity_flags_count = len(flags)
+    attempt.integrity_risk_level = 'high' if any(flag['severity'] == 'high' for flag in flags) else ('medium' if flags else 'none')
+    attempt.integrity_risk_label = 'Высокий риск' if attempt.integrity_risk_level == 'high' else ('Требует внимания' if flags else 'Без флагов')
+    return attempt
+
+
+def enrich_achievement(achievement):
+    achievement = {
+        **achievement,
+        'level_label': {
+            'bronze': 'Бронза',
+            'silver': 'Серебро',
+            'gold': 'Золото',
+        }.get(achievement['level'], achievement['level']),
+        'badge_class': {
+            'bronze': 'badge-warning',
+            'silver': '',
+            'gold': 'badge-success',
+        }.get(achievement['level'], ''),
+    }
+    return achievement
+
+
 class HomeView(TemplateView):
     template_name = 'testing/home.html'
 
@@ -174,11 +204,12 @@ class DashboardView(LoginRequiredMixin, TemplateView):
                 .select_related('attempt', 'attempt__quiz', 'attempt__student')
                 .order_by('-created_at')[:6]
             )
-            recent_attempts = (
+            recent_attempts = list(
                 Attempt.objects.filter(quiz__course__owner=user, status=AttemptStatus.SUBMITTED)
                 .select_related('student', 'quiz', 'quiz__course')
                 .order_by('-submitted_at')[:8]
             )
+            recent_attempts = [enrich_attempt_with_integrity(attempt) for attempt in recent_attempts]
             average_score = (
                 Attempt.objects.filter(quiz__course__owner=user, status=AttemptStatus.SUBMITTED)
                 .aggregate(avg=Avg('score_percent'))['avg']
@@ -191,12 +222,19 @@ class DashboardView(LoginRequiredMixin, TemplateView):
                 .count()
             )
             course_overview = []
+            suspicious_attempts = []
+            flagged_attempts_total = 0
+            for course in managed_courses:
+                integrity = build_course_integrity_overview(course, limit=4)
+                flagged_attempts_total += integrity['flagged_attempts_count']
+                suspicious_attempts.extend(integrity['rows'])
             for course in managed_courses[:8]:
                 next_deadline = (
                     course.quizzes.filter(is_published=True, available_until__isnull=False)
                     .order_by('available_until')
                     .first()
                 )
+                integrity = build_course_integrity_overview(course, limit=0)
                 course_overview.append(
                     {
                         'course': course,
@@ -205,8 +243,16 @@ class DashboardView(LoginRequiredMixin, TemplateView):
                         'average_score': course.average_score,
                         'completion_rate': course.completion_rate,
                         'next_deadline': next_deadline,
+                        'flagged_attempts': integrity['flagged_attempts_count'],
                     }
                 )
+            suspicious_attempts.sort(
+                key=lambda row: (
+                    row['risk_score'],
+                    row['attempt'].submitted_at or row['attempt'].created_at,
+                ),
+                reverse=True,
+            )
 
             context.update(
                 {
@@ -219,6 +265,7 @@ class DashboardView(LoginRequiredMixin, TemplateView):
                         ).count(),
                         'average_score': round(average_score),
                         'unread_notifications': unread_notifications_count,
+                        'flagged_attempts': flagged_attempts_total,
                         'pending_appeals': AttemptAppeal.objects.filter(
                             attempt__quiz__course__owner=user,
                             status=AppealStatus.PENDING,
@@ -226,6 +273,7 @@ class DashboardView(LoginRequiredMixin, TemplateView):
                     },
                     'course_overview': course_overview,
                     'recent_attempts': recent_attempts,
+                    'suspicious_attempts': suspicious_attempts[:6],
                     'pending_appeals': pending_appeals,
                     'recent_notifications': recent_notifications,
                     'recent_announcements': (
@@ -237,7 +285,7 @@ class DashboardView(LoginRequiredMixin, TemplateView):
             )
         else:
             enrollments = Enrollment.objects.filter(student=user).select_related('course', 'course__owner')
-            recent_attempts = (
+            recent_attempts = list(
                 Attempt.objects.filter(student=user, status=AttemptStatus.SUBMITTED)
                 .select_related('quiz', 'quiz__course')
                 .order_by('-submitted_at')[:8]
@@ -254,6 +302,7 @@ class DashboardView(LoginRequiredMixin, TemplateView):
             )
             progress_rows = []
             pending_quizzes_total = 0
+            achievements = [enrich_achievement(item) for item in build_student_achievements(user)]
 
             for enrollment in enrollments:
                 progress = build_student_progress(enrollment.course, user)
@@ -281,10 +330,12 @@ class DashboardView(LoginRequiredMixin, TemplateView):
                         'average_score': round(average_score),
                         'pending_quizzes': pending_quizzes_total,
                         'unread_notifications': unread_notifications_count,
+                        'achievements': len(achievements),
                         'open_appeals': AttemptAppeal.objects.filter(student=user, status=AppealStatus.PENDING).count(),
                     },
                     'course_progress': progress_rows,
                     'recent_attempts': recent_attempts,
+                    'recent_achievements': achievements[:6],
                     'open_appeals': open_appeals,
                     'recent_notifications': recent_notifications,
                     'recent_announcements': (
@@ -471,9 +522,11 @@ class CourseInsightsView(LoginRequiredMixin, DetailView):
             context['topic_diagnostics'] = build_course_topic_diagnostics(course)
             context['attention_students'] = build_course_attention_students(course)
             context['leaderboard'] = build_course_leaderboard(course)
+            context['integrity_overview'] = build_course_integrity_overview(course)
         else:
             context['student_progress'] = build_student_progress(course, user)
             context['topic_diagnostics'] = build_student_topic_diagnostics(course, user)
+            context['course_achievements'] = [enrich_achievement(item) for item in build_student_achievements(user, course=course)]
 
         return context
 
@@ -1137,6 +1190,10 @@ class AttemptResultView(LoginRequiredMixin, DetailView):
         )
         context['topic_insights'] = build_attempt_topic_insights(self.object)
         context['attempt_comparison'] = build_attempt_comparison(self.object)
+        context['integrity_flags'] = build_attempt_integrity_flags(self.object) if self.request.user.is_teacher else []
+        context['unlocked_achievements'] = [
+            enrich_achievement(item) for item in build_attempt_unlocked_achievements(self.object)
+        ]
         return context
 
 
@@ -1285,19 +1342,22 @@ class QuizAttemptsView(TeacherRequiredMixin, ListView):
         return super().dispatch(request, *args, **kwargs)
 
     def get_queryset(self):
-        return (
+        attempts = list(
             Attempt.objects.filter(quiz=self.quiz, status=AttemptStatus.SUBMITTED)
             .select_related('student', 'review')
             .order_by('-submitted_at')
         )
+        return [enrich_attempt_with_integrity(attempt) for attempt in attempts]
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        integrity_rows = [attempt for attempt in context['attempts'] if attempt.integrity_flags_count]
         context['quiz'] = self.quiz
         context['analytics'] = {
             'attempts': self.quiz.submitted_attempts_count,
             'average_score': self.quiz.average_score,
             'pass_rate': self.quiz.pass_rate,
             'reviewed_attempts': AttemptReview.objects.filter(attempt__quiz=self.quiz).count(),
+            'flagged_attempts': len(integrity_rows),
         }
         return context

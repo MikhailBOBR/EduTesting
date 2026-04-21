@@ -55,6 +55,49 @@
     </article>
 </section>
 
+{% if unlocked_achievements %}
+    <section class="panel">
+        <div class="panel__header">
+            <div class="section-kicker">Достижения</div>
+            <h2>Что открылось этой попыткой</h2>
+        </div>
+        <div class="card-list">
+            {% for achievement in unlocked_achievements %}
+                <article class="card">
+                    <div class="tag-row">
+                        <span class="badge {{ achievement.badge_class|default:'' }}">{{ achievement.level_label }}</span>
+                        <span class="meta-chip">{{ achievement.course.title }}</span>
+                    </div>
+                    <h3>{{ achievement.title }}</h3>
+                    <p class="muted">{{ achievement.description }}</p>
+                </article>
+            {% endfor %}
+        </div>
+    </section>
+{% endif %}
+
+{% if integrity_flags %}
+    <section class="panel">
+        <div class="panel__header">
+            <div class="section-kicker">Контроль</div>
+            <h2>Флаги подозрительной попытки</h2>
+        </div>
+        <div class="card-list">
+            {% for flag in integrity_flags %}
+                <article class="card">
+                    <div class="tag-row">
+                        <span class="badge{% if flag.severity == 'high' %} badge-danger{% else %} badge-warning{% endif %}">
+                            {% if flag.severity == 'high' %}Высокий риск{% else %}Требует внимания{% endif %}
+                        </span>
+                    </div>
+                    <h3>{{ flag.title }}</h3>
+                    <p class="muted">{{ flag.message }}</p>
+                </article>
+            {% endfor %}
+        </div>
+    </section>
+{% endif %}
+
 {% if attempt_comparison %}
     <section class="grid-2">
         <article class="panel">

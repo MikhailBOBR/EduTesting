@@ -2,13 +2,13 @@
   "info": {
     "_postman_id": "84fb9f7b-7f49-4c0d-91d8-4ad3f4d56401",
     "name": "EduTesting API Demo",
-    "description": "Небольшая коллекция для демонстрации API проекта EduTesting в Postman. Включает авторизацию, студенческий сценарий прохождения теста и преподавательские действия по аналитике, индивидуальным условиям и апелляциям.",
+    "description": "Коллекция для демонстрации ключевых API-сценариев EduTesting: авторизация, прохождение теста, достижения, аналитика, контроль подозрительных попыток, индивидуальные условия и апелляции.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
     {
       "name": "Auth",
-      "description": "Получение токенов для сценариев студента и преподавателя.",
+      "description": "Получение токенов для студента и преподавателя.",
       "item": [
         {
           "name": "Student Token",
@@ -44,7 +44,7 @@
               }
             },
             "url": "{{base_url}}/api/auth/token/",
-            "description": "Получает токен студента и автоматически сохраняет его в collection variable `student_token`."
+            "description": "Получает токен студента и сохраняет его в collection variable `student_token`."
           },
           "response": []
         },
@@ -82,7 +82,7 @@
               }
             },
             "url": "{{base_url}}/api/auth/token/",
-            "description": "Получает токен преподавателя и автоматически сохраняет его в collection variable `teacher_token`."
+            "description": "Получает токен преподавателя и сохраняет его в collection variable `teacher_token`."
           },
           "response": []
         }
@@ -90,7 +90,7 @@
     },
     {
       "name": "Student Flow",
-      "description": "Небольшой полный сценарий: запись на курс, старт попытки, автосохранение, отправка результата и подача апелляции.",
+      "description": "Полный сценарий студента: вход, запись на курс, прохождение теста, результат, достижения и апелляция.",
       "item": [
         {
           "name": "Me",
@@ -103,7 +103,7 @@
               }
             ],
             "url": "{{base_url}}/api/me/",
-            "description": "Проверка, что токен студента корректен."
+            "description": "Проверка корректности токена студента."
           },
           "response": []
         },
@@ -118,7 +118,7 @@
               }
             ],
             "url": "{{base_url}}/api/courses/{{course_id}}/enroll/",
-            "description": "Записывает студента на демо-курс."
+            "description": "Записывает студента на курс."
           },
           "response": []
         },
@@ -175,7 +175,7 @@
               }
             },
             "url": "{{base_url}}/api/attempts/{{attempt_id}}/draft/",
-            "description": "Автосохранение промежуточных ответов. В environment уже лежит готовое тело для демо."
+            "description": "Автосохраняет промежуточные ответы."
           },
           "response": []
         },
@@ -203,7 +203,7 @@
               }
             },
             "url": "{{base_url}}/api/attempts/{{attempt_id}}/submit/",
-            "description": "Отправляет попытку на проверку. В environment задано простое демо-тело с ответами."
+            "description": "Отправляет попытку на проверку и возвращает подробный результат."
           },
           "response": []
         },
@@ -218,7 +218,22 @@
               }
             ],
             "url": "{{base_url}}/api/attempts/{{attempt_id}}/",
-            "description": "Возвращает полный отчет по попытке, включая аналитику по темам, сравнение с предыдущей попыткой и данные по апелляции."
+            "description": "Возвращает полный отчет по попытке, включая сравнение с предыдущей и новые достижения."
+          },
+          "response": []
+        },
+        {
+          "name": "My Achievements",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{auth_prefix}} {{student_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/my/achievements/",
+            "description": "Возвращает вычисляемые достижения текущего студента."
           },
           "response": []
         },
@@ -260,7 +275,7 @@
               }
             },
             "url": "{{base_url}}/api/attempts/{{attempt_id}}/appeal/",
-            "description": "Подача апелляции по завершенной попытке. `appeal_id` автоматически сохраняется в environment."
+            "description": "Подает апелляцию по завершенной попытке и сохраняет `appeal_id` в environment."
           },
           "response": []
         }
@@ -268,7 +283,7 @@
     },
     {
       "name": "Teacher Flow",
-      "description": "Ключевые запросы преподавателя: аналитика, индивидуальные условия по тесту и рассмотрение апелляций.",
+      "description": "Ключевые запросы преподавателя: аналитика, контроль честности, индивидуальные условия и апелляции.",
       "item": [
         {
           "name": "Course Analytics",
@@ -281,7 +296,37 @@
               }
             ],
             "url": "{{base_url}}/api/courses/{{course_id}}/analytics/",
-            "description": "Показывает слабые темы, студентов под риском и лидерборд курса."
+            "description": "Показывает слабые темы, проблемных студентов и лидерборд курса."
+          },
+          "response": []
+        },
+        {
+          "name": "Course Integrity",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{auth_prefix}} {{teacher_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/courses/{{course_id}}/integrity/",
+            "description": "Возвращает попытки с флагами внимания и их уровень риска."
+          },
+          "response": []
+        },
+        {
+          "name": "Quiz Attempts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{auth_prefix}} {{teacher_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/quizzes/{{quiz_id}}/attempts/",
+            "description": "Журнал завершенных попыток по тесту с краткой integrity-меткой."
           },
           "response": []
         },
@@ -309,22 +354,7 @@
               }
             },
             "url": "{{base_url}}/api/quizzes/{{quiz_id}}/overrides/",
-            "description": "Задает индивидуальные условия для студента: дополнительное время и попытки."
-          },
-          "response": []
-        },
-        {
-          "name": "Quiz Attempts",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "{{auth_prefix}} {{teacher_token}}"
-              }
-            ],
-            "url": "{{base_url}}/api/quizzes/{{quiz_id}}/attempts/",
-            "description": "Список завершенных попыток по выбранному тесту."
+            "description": "Задает индивидуальные условия для выбранного студента."
           },
           "response": []
         },
@@ -352,7 +382,7 @@
               }
             },
             "url": "{{base_url}}/api/appeals/{{appeal_id}}/review/",
-            "description": "Рассматривает апелляцию и возвращает статус с комментарием преподавателя."
+            "description": "Рассматривает апелляцию и возвращает решение преподавателя."
           },
           "response": []
         }

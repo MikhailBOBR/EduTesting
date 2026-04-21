@@ -18,8 +18,8 @@
                 <span class="swagger-pill">Swagger UI</span>
                 <h1>{{ title }}</h1>
                 <p>
-                    Презентационный экран для backend-возможностей EduTesting: токен-авторизация,
-                    студенческий сценарий, преподавательская аналитика и работа с попытками.
+                    Презентационный вход в API EduTesting: токен-авторизация, студенческий сценарий прохождения теста,
+                    достижения, персональные условия, апелляции и преподавательский контроль подозрительных попыток.
                 </p>
                 <div class="swagger-actions">
                     <a class="swagger-button" href="{% url 'testing:home' %}">Открыть приложение</a>
@@ -34,9 +34,14 @@
                     <p>Получите токен через <code>POST /api/auth/token/</code>, затем вставьте <code>Token ваш_токен</code> в <code>Authorize</code>.</p>
                 </article>
                 <article class="swagger-card">
-                    <span class="swagger-card__label">Сценарии</span>
-                    <strong>Студент и преподаватель</strong>
-                    <p>Покрыты старт попытки, автосохранение, отправка, аналитика курса и просмотр завершенных попыток.</p>
+                    <span class="swagger-card__label">Студент</span>
+                    <strong>Тест, черновик и достижения</strong>
+                    <p>Покрыты запись на курс, старт попытки, автосохранение, отправка, просмотр результата и личные достижения.</p>
+                </article>
+                <article class="swagger-card">
+                    <span class="swagger-card__label">Преподаватель</span>
+                    <strong>Аналитика и контроль честности</strong>
+                    <p>Доступны аналитика курса, список попыток, индивидуальные условия, апелляции и сводка по подозрительным попыткам.</p>
                 </article>
             </div>
         </div>
@@ -49,12 +54,12 @@
                 <p>1. Получите токен. 2. Нажмите <code>Authorize</code>. 3. Проверьте сценарий <code>enroll → start → draft → submit</code>.</p>
             </article>
             <article class="swagger-note">
-                <span class="swagger-note__title">Ключевые эндпоинты</span>
-                <p>Лучше всего смотрятся <code>POST /api/auth/token/</code>, <code>POST /api/attempts/{id}/draft/</code> и <code>GET /api/courses/{id}/analytics/</code>.</p>
+                <span class="swagger-note__title">Что показать</span>
+                <p>Сильнее всего смотрятся <code>GET /api/my/achievements/</code>, <code>GET /api/courses/{id}/integrity/</code> и <code>GET /api/courses/{id}/analytics/</code>.</p>
             </article>
             <article class="swagger-note">
-                <span class="swagger-note__title">Стиль работы</span>
-                <p>Фильтр, сохранение авторизации и время ответа включены, чтобы Swagger был удобен и для демо, и для отладки.</p>
+                <span class="swagger-note__title">Рабочий режим</span>
+                <p>Фильтр, время ответа, сохранение авторизации и Try it out уже включены, поэтому Swagger подходит и для демо, и для живой проверки API.</p>
             </article>
         </section>
 

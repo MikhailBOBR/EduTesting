@@ -3,21 +3,21 @@ info:
   title: EduTesting API
   version: 1.0.0
   description: |-
-    Аккуратный демонстрационный API для онлайн-тестирования студентов.
+    API для платформы онлайн-тестирования с акцентом на сильные backend-сценарии.
 
     Что удобно показывать прямо в Swagger UI:
-    * авторизацию по токену;
-    * сценарий студента: запись на курс, старт попытки, автосохранение черновика и отправка;
-    * сценарий преподавателя: просмотр попыток и аналитики курса.
+    * токен-авторизацию и персональные роли;
+    * студенческий поток: запись на курс, старт попытки, автосохранение черновика, отправка и достижения;
+    * преподавательский поток: аналитика курса, контроль подозрительных попыток, индивидуальные условия и апелляции.
 
     Для защищенных методов сначала выполните `POST /api/auth/token/`, затем нажмите `Authorize` и передайте токен в формате `Token ваш_токен`.
   contact:
-    name: Кашпирев М.Д.
+    name: Mikhail Kashpirev
 paths:
   /api/appeals/{id}/review/:
     post:
       operationId: appeals_review_create
-      summary: Рассмотрение апелляции преподавателем
+      summary: Р Р°СЃСЃРјРѕС‚СЂРµРЅРёРµ Р°РїРµР»Р»СЏС†РёРё РїСЂРµРїРѕРґР°РІР°С‚РµР»РµРј
       parameters:
       - in: path
         name: id
@@ -51,7 +51,7 @@ paths:
   /api/attempts/{id}/:
     get:
       operationId: attempts_retrieve
-      summary: Детальная информация о попытке
+      summary: Р”РµС‚Р°Р»СЊРЅР°СЏ РёРЅС„РѕСЂРјР°С†РёСЏ Рѕ РїРѕРїС‹С‚РєРµ
       parameters:
       - in: path
         name: id
@@ -73,7 +73,7 @@ paths:
   /api/attempts/{id}/appeal/:
     post:
       operationId: attempts_appeal_create
-      summary: Подача апелляции по попытке
+      summary: РџРѕРґР°С‡Р° Р°РїРµР»Р»СЏС†РёРё РїРѕ РїРѕРїС‹С‚РєРµ
       parameters:
       - in: path
         name: id
@@ -113,7 +113,7 @@ paths:
   /api/attempts/{id}/draft/:
     post:
       operationId: attempts_draft_create
-      summary: Автосохранение черновика попытки
+      summary: РђРІС‚РѕСЃРѕС…СЂР°РЅРµРЅРёРµ С‡РµСЂРЅРѕРІРёРєР° РїРѕРїС‹С‚РєРё
       parameters:
       - in: path
         name: id
@@ -147,7 +147,7 @@ paths:
   /api/attempts/{id}/submit/:
     post:
       operationId: attempts_submit_create
-      summary: Отправка попытки на проверку
+      summary: РћС‚РїСЂР°РІРєР° РїРѕРїС‹С‚РєРё РЅР° РїСЂРѕРІРµСЂРєСѓ
       parameters:
       - in: path
         name: id
@@ -162,7 +162,7 @@ paths:
             schema:
               $ref: '#/components/schemas/ApiAttemptSubmitRequest'
             examples:
-              ПримерТелаЗапроса:
+              РџСЂРёРјРµСЂС‚РµР»Р°Р·Р°РїСЂРѕСЃР°:
                 value:
                   answers:
                     '1':
@@ -170,7 +170,7 @@ paths:
                     '2':
                     - 4
                     - 6
-                summary: Пример тела запроса
+                summary: РџСЂРёРјРµСЂ С‚РµР»Р° Р·Р°РїСЂРѕСЃР°
           application/x-www-form-urlencoded:
             schema:
               $ref: '#/components/schemas/ApiAttemptSubmitRequest'
@@ -191,9 +191,10 @@ paths:
   /api/auth/token/:
     post:
       operationId: auth_token_create
-      description: Авторизует пользователя по логину и паролю и возвращает токен для
-        дальнейшей работы в Postman и Swagger.
-      summary: Получение токена авторизации
+      description: РђРІС‚РѕСЂРёР·СѓРµС‚ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ РїРѕ Р»РѕРіРёРЅСѓ
+        Рё РїР°СЂРѕР»СЋ Рё РІРѕР·РІСЂР°С‰Р°РµС‚ С‚РѕРєРµРЅ РґР»СЏ РґР°Р»СЊРЅРµР№С€РµР№
+        СЂР°Р±РѕС‚С‹ РІ Postman Рё Swagger.
+      summary: РџРѕР»СѓС‡РµРЅРёРµ С‚РѕРєРµРЅР° Р°РІС‚РѕСЂРёР·Р°С†РёРё
       tags:
       - auth
       requestBody:
@@ -202,11 +203,11 @@ paths:
             schema:
               $ref: '#/components/schemas/ApiTokenRequest'
             examples:
-              ПримерЗапроса:
+              РџСЂРёРјРµСЂР·Р°РїСЂРѕСЃР°:
                 value:
                   username: student_demo
                   password: StudentDemo123!
-                summary: Пример запроса
+                summary: РџСЂРёРјРµСЂ Р·Р°РїСЂРѕСЃР°
           application/x-www-form-urlencoded:
             schema:
               $ref: '#/components/schemas/ApiTokenRequest'
@@ -228,7 +229,7 @@ paths:
   /api/courses/:
     get:
       operationId: courses_list
-      summary: Список опубликованных курсов
+      summary: РЎРїРёСЃРѕРє РѕРїСѓР±Р»РёРєРѕРІР°РЅРЅС‹С… РєСѓСЂСЃРѕРІ
       tags:
       - courses
       security:
@@ -270,7 +271,7 @@ paths:
   /api/courses/{id}/analytics/:
     get:
       operationId: courses_analytics_retrieve
-      summary: Аналитика курса для преподавателя
+      summary: РђРЅР°Р»РёС‚РёРєР° РєСѓСЂСЃР° РґР»СЏ РїСЂРµРїРѕРґР°РІР°С‚РµР»СЏ
       parameters:
       - in: path
         name: id
@@ -292,7 +293,7 @@ paths:
   /api/courses/{id}/enroll/:
     post:
       operationId: courses_enroll_create
-      summary: Запись студента на курс
+      summary: Р—Р°РїРёСЃСЊ СЃС‚СѓРґРµРЅС‚Р° РЅР° РєСѓСЂСЃ
       parameters:
       - in: path
         name: id
@@ -323,10 +324,35 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiEnrollmentResponse'
           description: ''
+  /api/courses/{id}/integrity/:
+    get:
+      operationId: courses_integrity_retrieve
+      description: 'Возвращает попытки с дополнительными флагами внимания: слишком
+        быстрое завершение, идеальный результат за короткое время и резкий скачок
+        между попытками.'
+      summary: Контроль подозрительных попыток по курсу
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - courses
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiCourseIntegrity'
+          description: ''
   /api/me/:
     get:
       operationId: me_retrieve
-      summary: Информация о текущем пользователе
+      summary: "Р\x98РЅС„РѕСЂРјР°С†РёСЏ Рѕ С‚РµРєСѓС‰РµРј РїРѕР»СЊР·РѕРІР°С‚РµР»Рµ"
       tags:
       - me
       security:
@@ -339,12 +365,33 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiUser'
           description: ''
+  /api/my/achievements/:
+    get:
+      operationId: my_achievements_list
+      description: 'Возвращает вычисляемые достижения текущего пользователя: первые
+        завершенные попытки, идеальные результаты, серии успешных прохождений и сильный
+        прогресс.'
+      summary: Мои достижения
+      tags:
+      - my
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ApiStudentAchievement'
+          description: ''
   /api/my/courses/:
     get:
       operationId: my_courses_list
-      description: Для студента возвращает курсы по записи, для преподавателя — управляемые
-        курсы.
-      summary: Мои курсы
+      description: Р”Р»СЏ СЃС‚СѓРґРµРЅС‚Р° РІРѕР·РІСЂР°С‰Р°РµС‚ РєСѓСЂСЃС‹ РїРѕ Р·Р°РїРёСЃРё,
+        РґР»СЏ РїСЂРµРїРѕРґР°РІР°С‚РµР»СЏ вЂ” СѓРїСЂР°РІР»СЏРµРјС‹Рµ РєСѓСЂСЃС‹.
+      summary: РњРѕРё РєСѓСЂСЃС‹
       tags:
       - my
       security:
@@ -362,7 +409,7 @@ paths:
   /api/quizzes/{id}/:
     get:
       operationId: quizzes_retrieve
-      summary: Детальная информация о тесте
+      summary: Р”РµС‚Р°Р»СЊРЅР°СЏ РёРЅС„РѕСЂРјР°С†РёСЏ Рѕ С‚РµСЃС‚Рµ
       parameters:
       - in: path
         name: id
@@ -385,7 +432,7 @@ paths:
   /api/quizzes/{id}/attempts/:
     get:
       operationId: quizzes_attempts_retrieve
-      summary: Список попыток по тесту для преподавателя
+      summary: РЎРїРёСЃРѕРє РїРѕРїС‹С‚РѕРє РїРѕ С‚РµСЃС‚Сѓ РґР»СЏ РїСЂРµРїРѕРґР°РІР°С‚РµР»СЏ
       parameters:
       - in: path
         name: id
@@ -407,7 +454,7 @@ paths:
   /api/quizzes/{id}/overrides/:
     get:
       operationId: quizzes_overrides_list
-      summary: Список индивидуальных условий по тесту
+      summary: РЎРїРёСЃРѕРє РёРЅРґРёРІРёРґСѓР°Р»СЊРЅС‹С… СѓСЃР»РѕРІРёР№ РїРѕ С‚РµСЃС‚Сѓ
       parameters:
       - in: path
         name: id
@@ -430,7 +477,8 @@ paths:
           description: ''
     post:
       operationId: quizzes_overrides_create
-      summary: Создание или обновление индивидуальных условий
+      summary: РЎРѕР·РґР°РЅРёРµ РёР»Рё РѕР±РЅРѕРІР»РµРЅРёРµ РёРЅРґРёРІРёРґСѓР°Р»СЊРЅС‹С…
+        СѓСЃР»РѕРІРёР№
       parameters:
       - in: path
         name: id
@@ -470,7 +518,7 @@ paths:
   /api/quizzes/{id}/start/:
     post:
       operationId: quizzes_start_create
-      summary: Старт попытки по тесту
+      summary: РЎС‚Р°СЂС‚ РїРѕРїС‹С‚РєРё РїРѕ С‚РµСЃС‚Сѓ
       parameters:
       - in: path
         name: id
@@ -655,9 +703,9 @@ paths:
   /api/stats/:
     get:
       operationId: stats_retrieve
-      description: Возвращает агрегированные показатели для демонстрации API в Swagger
-        и Postman.
-      summary: Сводная статистика сервиса
+      description: Р’РѕР·РІСЂР°С‰Р°РµС‚ Р°РіСЂРµРіРёСЂРѕРІР°РЅРЅС‹Рµ РїРѕРєР°Р·Р°С‚РµР»Рё
+        РґР»СЏ РґРµРјРѕРЅСЃС‚СЂР°С†РёРё API РІ Swagger Рё Postman.
+      summary: РЎРІРѕРґРЅР°СЏ СЃС‚Р°С‚РёСЃС‚РёРєР° СЃРµСЂРІРёСЃР°
       tags:
       - stats
       security:
@@ -910,11 +958,21 @@ components:
           allOf:
           - $ref: '#/components/schemas/ApiAttemptComparison'
           nullable: true
+        integrity_flags:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApiAttemptIntegrityFlag'
+        new_achievements:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApiStudentAchievement'
       required:
       - answers
       - appeal
       - attempt
       - comparison
+      - integrity_flags
+      - new_achievements
       - recommendations
       - review
       - show_answer_key
@@ -952,6 +1010,22 @@ components:
           nullable: true
       required:
       - answers
+    ApiAttemptIntegrityFlag:
+      type: object
+      properties:
+        code:
+          type: string
+        severity:
+          type: string
+        title:
+          type: string
+        message:
+          type: string
+      required:
+      - code
+      - message
+      - severity
+      - title
     ApiAttemptReview:
       type: object
       properties:
@@ -1200,6 +1274,62 @@ components:
       - summary
       - title
       - total_students
+    ApiCourseIntegrity:
+      type: object
+      properties:
+        course:
+          $ref: '#/components/schemas/ApiCourseReference'
+        flagged_attempts_count:
+          type: integer
+        high_risk_attempts_count:
+          type: integer
+        students_count:
+          type: integer
+        attempts:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApiCourseIntegrityAttempt'
+      required:
+      - attempts
+      - course
+      - flagged_attempts_count
+      - high_risk_attempts_count
+      - students_count
+    ApiCourseIntegrityAttempt:
+      type: object
+      properties:
+        attempt_id:
+          type: integer
+        submitted_at:
+          type: string
+          format: date-time
+        score_percent:
+          type: integer
+        duration_minutes:
+          type: number
+          format: double
+        risk_level:
+          type: string
+        risk_label:
+          type: string
+        student:
+          $ref: '#/components/schemas/ApiUser'
+        quiz:
+          $ref: '#/components/schemas/ApiQuizReference'
+        flags:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApiAttemptIntegrityFlag'
+      required:
+      - attempt_id
+      - duration_minutes
+      - flags
+      - quiz
+      - risk_label
+      - risk_level
+      - score_percent
+      - student
+      - submitted_at
     ApiCourseList:
       type: object
       properties:
@@ -1465,10 +1595,18 @@ components:
         has_review:
           type: boolean
           readOnly: true
+        integrity_flags_count:
+          type: integer
+          readOnly: true
+        highest_integrity_severity:
+          type: string
+          readOnly: true
       required:
       - academic_group
       - has_review
+      - highest_integrity_severity
       - id
+      - integrity_flags_count
       - student_name
     ApiQuizAttemptsResponse:
       type: object
@@ -1626,6 +1764,32 @@ components:
       - quizzes
       - students
       - submitted_attempts
+    ApiStudentAchievement:
+      type: object
+      properties:
+        code:
+          type: string
+        level:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        awarded_at:
+          type: string
+          format: date-time
+        attempt_id:
+          type: integer
+        course:
+          $ref: '#/components/schemas/ApiCourseReference'
+      required:
+      - attempt_id
+      - awarded_at
+      - code
+      - course
+      - description
+      - level
+      - title
     ApiTokenRequest:
       type: object
       properties:
@@ -1734,11 +1898,15 @@ tags:
   description: Получение токена для работы в Swagger UI и Postman.
 - name: me
   description: Информация о текущем авторизованном пользователе.
+- name: my
+  description: 'Личные подборки пользователя: курсы и вычисляемые достижения.'
 - name: stats
   description: Краткая публичная статистика сервиса.
 - name: courses
-  description: Каталог курсов, запись студента и преподавательская аналитика.
+  description: Каталог курсов, запись студента, аналитика и контроль попыток по курсу.
 - name: quizzes
-  description: Тесты курса, старт попытки и список завершенных попыток.
+  description: Тесты курса, старт попытки, индивидуальные условия и журнал попыток.
 - name: attempts
-  description: Черновики, результат попытки и финальная отправка на проверку.
+  description: Черновики, итог попытки, сравнение с прошлой попыткой и апелляции.
+- name: appeals
+  description: Рассмотрение апелляций преподавателем.

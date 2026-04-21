@@ -1,4 +1,4 @@
-from django.contrib.auth import authenticate
+﻿from django.contrib.auth import authenticate
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from drf_spectacular.utils import OpenApiExample, extend_schema
@@ -12,10 +12,14 @@ from rest_framework.views import APIView
 
 from .analytics import (
     build_attempt_comparison,
+    build_attempt_integrity_flags,
+    build_attempt_unlocked_achievements,
+    build_course_integrity_overview,
     build_attempt_topic_insights,
     build_course_attention_students,
     build_course_leaderboard,
     build_course_topic_diagnostics,
+    build_student_achievements,
 )
 from .api_serializers import (
     ApiAttemptAppealRequestSerializer,
@@ -29,6 +33,7 @@ from .api_serializers import (
     ApiAttemptSummarySerializer,
     ApiCourseAnalyticsSerializer,
     ApiCourseDetailSerializer,
+    ApiCourseIntegritySerializer,
     ApiCourseListSerializer,
     ApiEnrollmentResponseSerializer,
     ApiMyCourseSerializer,
@@ -38,6 +43,7 @@ from .api_serializers import (
     ApiQuizAttemptListSerializer,
     ApiQuizDetailSerializer,
     ApiStatsSerializer,
+    ApiStudentAchievementSerializer,
     ApiTokenRequestSerializer,
     ApiTokenResponseSerializer,
     ApiUserSerializer,
@@ -74,18 +80,28 @@ def serialize_user(user):
     }
 
 
+def serialize_achievement(achievement):
+    return {
+        **achievement,
+        'attempt_id': achievement['attempt'].pk,
+        'course': achievement['course'],
+    }
+
+
 def ensure_student(user):
     if not user.is_student:
-        raise PermissionDenied('Эндпоинт доступен только студенту.')
+        raise PermissionDenied('Р­РЅРґРїРѕРёРЅС‚ РґРѕСЃС‚СѓРїРµРЅ С‚РѕР»СЊРєРѕ СЃС‚СѓРґРµРЅС‚Сѓ.')
 
 
 def ensure_course_owner(user, course):
     if not user.is_teacher or course.owner_id != user.id:
-        raise PermissionDenied('Эндпоинт доступен только преподавателю этого курса.')
+        raise PermissionDenied('Р­РЅРґРїРѕРёРЅС‚ РґРѕСЃС‚СѓРїРµРЅ С‚РѕР»СЊРєРѕ РїСЂРµРїРѕРґР°РІР°С‚РµР»СЋ СЌС‚РѕРіРѕ РєСѓСЂСЃР°.')
 
 
 def build_attempt_payload(attempt, user):
     show_answer_key = user.is_teacher or attempt.quiz.show_correct_answers
+    integrity_flags = build_attempt_integrity_flags(attempt) if user.is_teacher else []
+    unlocked_achievements = [serialize_achievement(item) for item in build_attempt_unlocked_achievements(attempt)]
     answers_payload = []
     answers = (
         attempt.answers.select_related('question')
@@ -118,6 +134,8 @@ def build_attempt_payload(attempt, user):
         'review': getattr(attempt, 'review', None),
         'appeal': getattr(attempt, 'appeal', None),
         'show_answer_key': show_answer_key,
+        'integrity_flags': integrity_flags,
+        'new_achievements': unlocked_achievements,
         'comparison': {
             **comparison,
             'previous_attempt_id': comparison['previous_attempt'].pk,
@@ -130,13 +148,13 @@ def build_attempt_payload(attempt, user):
 
 
 @extend_schema(
-    summary='Получение токена авторизации',
-    description='Авторизует пользователя по логину и паролю и возвращает токен для дальнейшей работы в Postman и Swagger.',
+    summary='РџРѕР»СѓС‡РµРЅРёРµ С‚РѕРєРµРЅР° Р°РІС‚РѕСЂРёР·Р°С†РёРё',
+    description='РђРІС‚РѕСЂРёР·СѓРµС‚ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ РїРѕ Р»РѕРіРёРЅСѓ Рё РїР°СЂРѕР»СЋ Рё РІРѕР·РІСЂР°С‰Р°РµС‚ С‚РѕРєРµРЅ РґР»СЏ РґР°Р»СЊРЅРµР№С€РµР№ СЂР°Р±РѕС‚С‹ РІ Postman Рё Swagger.',
     request=ApiTokenRequestSerializer,
     responses={200: ApiTokenResponseSerializer},
     examples=[
         OpenApiExample(
-            'Пример запроса',
+            'РџСЂРёРјРµСЂ Р·Р°РїСЂРѕСЃР°',
             value={'username': 'student_demo', 'password': 'StudentDemo123!'},
             request_only=True,
         )
@@ -154,7 +172,7 @@ class ApiTokenAuthView(APIView):
             password=serializer.validated_data['password'],
         )
         if user is None:
-            raise ValidationError({'detail': 'Неверный логин или пароль.'})
+            raise ValidationError({'detail': 'РќРµРІРµСЂРЅС‹Р№ Р»РѕРіРёРЅ РёР»Рё РїР°СЂРѕР»СЊ.'})
 
         token, _ = Token.objects.get_or_create(user=user)
         payload = {
@@ -164,7 +182,7 @@ class ApiTokenAuthView(APIView):
         return Response(ApiTokenResponseSerializer(payload).data)
 
 
-@extend_schema(summary='Информация о текущем пользователе', responses={200: ApiUserSerializer})
+@extend_schema(summary='РРЅС„РѕСЂРјР°С†РёСЏ Рѕ С‚РµРєСѓС‰РµРј РїРѕР»СЊР·РѕРІР°С‚РµР»Рµ', responses={200: ApiUserSerializer})
 class ApiMeView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -173,8 +191,8 @@ class ApiMeView(APIView):
 
 
 @extend_schema(
-    summary='Сводная статистика сервиса',
-    description='Возвращает агрегированные показатели для демонстрации API в Swagger и Postman.',
+    summary='РЎРІРѕРґРЅР°СЏ СЃС‚Р°С‚РёСЃС‚РёРєР° СЃРµСЂРІРёСЃР°',
+    description='Р’РѕР·РІСЂР°С‰Р°РµС‚ Р°РіСЂРµРіРёСЂРѕРІР°РЅРЅС‹Рµ РїРѕРєР°Р·Р°С‚РµР»Рё РґР»СЏ РґРµРјРѕРЅСЃС‚СЂР°С†РёРё API РІ Swagger Рё Postman.',
     responses=ApiStatsSerializer,
 )
 class ApiStatsView(APIView):
@@ -192,7 +210,7 @@ class ApiStatsView(APIView):
         return Response(self.serializer_class(payload).data)
 
 
-@extend_schema(summary='Список опубликованных курсов')
+@extend_schema(summary='РЎРїРёСЃРѕРє РѕРїСѓР±Р»РёРєРѕРІР°РЅРЅС‹С… РєСѓСЂСЃРѕРІ')
 class ApiCourseListView(ListAPIView):
     permission_classes = [AllowAny]
     serializer_class = ApiCourseListSerializer
@@ -201,7 +219,7 @@ class ApiCourseListView(ListAPIView):
         return Course.objects.filter(is_published=True).select_related('owner').order_by('title')
 
 
-@extend_schema(summary='Мои курсы', description='Для студента возвращает курсы по записи, для преподавателя — управляемые курсы.')
+@extend_schema(summary='РњРѕРё РєСѓСЂСЃС‹', description='Р”Р»СЏ СЃС‚СѓРґРµРЅС‚Р° РІРѕР·РІСЂР°С‰Р°РµС‚ РєСѓСЂСЃС‹ РїРѕ Р·Р°РїРёСЃРё, РґР»СЏ РїСЂРµРїРѕРґР°РІР°С‚РµР»СЏ вЂ” СѓРїСЂР°РІР»СЏРµРјС‹Рµ РєСѓСЂСЃС‹.')
 class ApiMyCourseListView(ListAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = ApiMyCourseSerializer
@@ -218,6 +236,19 @@ class ApiMyCourseListView(ListAPIView):
         )
 
 
+@extend_schema(
+    summary='Мои достижения',
+    description='Возвращает вычисляемые достижения текущего пользователя: первые завершенные попытки, идеальные результаты, серии успешных прохождений и сильный прогресс.',
+    responses={200: ApiStudentAchievementSerializer(many=True)},
+)
+class ApiMyAchievementsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        achievements = [serialize_achievement(item) for item in build_student_achievements(request.user)]
+        return Response(ApiStudentAchievementSerializer(achievements, many=True).data)
+
+
 @extend_schema(summary='Детальная информация о курсе')
 class ApiCourseDetailView(RetrieveAPIView):
     permission_classes = [AllowAny]
@@ -230,7 +261,7 @@ class ApiCourseDetailView(RetrieveAPIView):
         )
 
 
-@extend_schema(summary='Запись студента на курс', responses={200: ApiEnrollmentResponseSerializer})
+@extend_schema(summary='Р—Р°РїРёСЃСЊ СЃС‚СѓРґРµРЅС‚Р° РЅР° РєСѓСЂСЃ', responses={200: ApiEnrollmentResponseSerializer})
 class ApiCourseEnrollView(APIView):
     permission_classes = [IsAuthenticated]
     serializer_class = ApiEnrollmentResponseSerializer
@@ -248,7 +279,7 @@ class ApiCourseEnrollView(APIView):
         return Response(ApiEnrollmentResponseSerializer(payload).data, status=response_status)
 
 
-@extend_schema(summary='Аналитика курса для преподавателя', responses={200: ApiCourseAnalyticsSerializer})
+@extend_schema(summary='РђРЅР°Р»РёС‚РёРєР° РєСѓСЂСЃР° РґР»СЏ РїСЂРµРїРѕРґР°РІР°С‚РµР»СЏ', responses={200: ApiCourseAnalyticsSerializer})
 class ApiCourseAnalyticsView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -283,7 +314,42 @@ class ApiCourseAnalyticsView(APIView):
         return Response(ApiCourseAnalyticsSerializer(payload).data)
 
 
-@extend_schema(summary='Детальная информация о тесте')
+@extend_schema(
+    summary='Контроль подозрительных попыток по курсу',
+    description='Возвращает попытки с дополнительными флагами внимания: слишком быстрое завершение, идеальный результат за короткое время и резкий скачок между попытками.',
+    responses={200: ApiCourseIntegritySerializer},
+)
+class ApiCourseIntegrityView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk, *args, **kwargs):
+        course = get_object_or_404(Course.objects.select_related('owner'), pk=pk)
+        ensure_course_owner(request.user, course)
+        integrity = build_course_integrity_overview(course)
+        payload = {
+            'course': course,
+            'flagged_attempts_count': integrity['flagged_attempts_count'],
+            'high_risk_attempts_count': integrity['high_risk_attempts_count'],
+            'students_count': integrity['students_count'],
+            'attempts': [
+                {
+                    'attempt_id': row['attempt'].pk,
+                    'submitted_at': row['attempt'].submitted_at,
+                    'score_percent': row['attempt'].score_percent,
+                    'duration_minutes': row['attempt'].duration_minutes,
+                    'risk_level': row['risk_level'],
+                    'risk_label': row['risk_label'],
+                    'student': serialize_user(row['attempt'].student),
+                    'quiz': row['attempt'].quiz,
+                    'flags': row['flags'],
+                }
+                for row in integrity['rows']
+            ],
+        }
+        return Response(ApiCourseIntegritySerializer(payload).data)
+
+
+@extend_schema(summary='Р”РµС‚Р°Р»СЊРЅР°СЏ РёРЅС„РѕСЂРјР°С†РёСЏ Рѕ С‚РµСЃС‚Рµ')
 class ApiQuizDetailView(RetrieveAPIView):
     permission_classes = [AllowAny]
     serializer_class = ApiQuizDetailSerializer
@@ -294,7 +360,7 @@ class ApiQuizDetailView(RetrieveAPIView):
         )
 
 
-@extend_schema(summary='Старт попытки по тесту', responses={200: ApiAttemptStartResponseSerializer, 201: ApiAttemptStartResponseSerializer})
+@extend_schema(summary='РЎС‚Р°СЂС‚ РїРѕРїС‹С‚РєРё РїРѕ С‚РµСЃС‚Сѓ', responses={200: ApiAttemptStartResponseSerializer, 201: ApiAttemptStartResponseSerializer})
 class ApiQuizStartView(APIView):
     permission_classes = [IsAuthenticated]
     serializer_class = ApiAttemptStartResponseSerializer
@@ -309,13 +375,13 @@ class ApiQuizStartView(APIView):
         )
 
         if not Enrollment.objects.filter(course=quiz.course, student=request.user).exists():
-            raise ValidationError({'detail': 'Сначала нужно записаться на курс.'})
+            raise ValidationError({'detail': 'РЎРЅР°С‡Р°Р»Р° РЅСѓР¶РЅРѕ Р·Р°РїРёСЃР°С‚СЊСЃСЏ РЅР° РєСѓСЂСЃ.'})
         if not quiz.is_available:
-            raise ValidationError({'detail': 'Тест сейчас недоступен для прохождения.'})
+            raise ValidationError({'detail': 'РўРµСЃС‚ СЃРµР№С‡Р°СЃ РЅРµРґРѕСЃС‚СѓРїРµРЅ РґР»СЏ РїСЂРѕС…РѕР¶РґРµРЅРёСЏ.'})
         if not quiz.questions.exists():
-            raise ValidationError({'detail': 'В тесте пока нет вопросов.'})
+            raise ValidationError({'detail': 'Р’ С‚РµСЃС‚Рµ РїРѕРєР° РЅРµС‚ РІРѕРїСЂРѕСЃРѕРІ.'})
         if quiz.unanswered_configuration_count:
-            raise ValidationError({'detail': 'Тест еще не полностью настроен преподавателем.'})
+            raise ValidationError({'detail': 'РўРµСЃС‚ РµС‰Рµ РЅРµ РїРѕР»РЅРѕСЃС‚СЊСЋ РЅР°СЃС‚СЂРѕРµРЅ РїСЂРµРїРѕРґР°РІР°С‚РµР»РµРј.'})
 
         attempt = Attempt.objects.filter(
             quiz=quiz,
@@ -326,7 +392,7 @@ class ApiQuizStartView(APIView):
 
         if attempt is None:
             if quiz.remaining_attempts(request.user) <= 0:
-                raise ValidationError({'detail': 'Лимит попыток исчерпан.'})
+                raise ValidationError({'detail': 'Р›РёРјРёС‚ РїРѕРїС‹С‚РѕРє РёСЃС‡РµСЂРїР°РЅ.'})
             attempt = Attempt.objects.create(
                 quiz=quiz,
                 student=request.user,
@@ -341,18 +407,22 @@ class ApiQuizStartView(APIView):
         return Response(ApiAttemptStartResponseSerializer(payload).data, status=response_status)
 
 
-@extend_schema(summary='Список попыток по тесту для преподавателя', responses={200: ApiQuizAttemptsResponseSerializer})
+@extend_schema(summary='РЎРїРёСЃРѕРє РїРѕРїС‹С‚РѕРє РїРѕ С‚РµСЃС‚Сѓ РґР»СЏ РїСЂРµРїРѕРґР°РІР°С‚РµР»СЏ', responses={200: ApiQuizAttemptsResponseSerializer})
 class ApiQuizAttemptsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk, *args, **kwargs):
         quiz = get_object_or_404(Quiz.objects.select_related('course', 'course__owner'), pk=pk)
         ensure_course_owner(request.user, quiz.course)
-        attempts = (
+        attempts = list(
             Attempt.objects.filter(quiz=quiz, status=AttemptStatus.SUBMITTED)
             .select_related('student', 'review')
             .order_by('-submitted_at')
         )
+        for attempt in attempts:
+            flags = build_attempt_integrity_flags(attempt)
+            attempt.integrity_flags_count = len(flags)
+            attempt.highest_integrity_severity = 'high' if any(flag['severity'] == 'high' for flag in flags) else ('medium' if flags else '')
         payload = {
             'quiz': quiz,
             'attempts': attempts,
@@ -369,7 +439,7 @@ class ApiQuizOverrideListCreateView(APIView):
         return quiz
 
     @extend_schema(
-        summary='Список индивидуальных условий по тесту',
+        summary='РЎРїРёСЃРѕРє РёРЅРґРёРІРёРґСѓР°Р»СЊРЅС‹С… СѓСЃР»РѕРІРёР№ РїРѕ С‚РµСЃС‚Сѓ',
         responses={200: ApiQuizAccessOverrideSerializer(many=True)},
     )
     def get(self, request, pk, *args, **kwargs):
@@ -382,7 +452,7 @@ class ApiQuizOverrideListCreateView(APIView):
         return Response(ApiQuizAccessOverrideSerializer(overrides, many=True).data)
 
     @extend_schema(
-        summary='Создание или обновление индивидуальных условий',
+        summary='РЎРѕР·РґР°РЅРёРµ РёР»Рё РѕР±РЅРѕРІР»РµРЅРёРµ РёРЅРґРёРІРёРґСѓР°Р»СЊРЅС‹С… СѓСЃР»РѕРІРёР№',
         request=ApiQuizAccessOverrideRequestSerializer,
         responses={200: ApiQuizAccessOverrideSerializer, 201: ApiQuizAccessOverrideSerializer},
     )
@@ -412,7 +482,7 @@ class ApiQuizOverrideListCreateView(APIView):
         return Response(ApiQuizAccessOverrideSerializer(override).data, status=response_status)
 
 
-@extend_schema(summary='Детальная информация о попытке', responses={200: ApiAttemptDetailSerializer})
+@extend_schema(summary='Р”РµС‚Р°Р»СЊРЅР°СЏ РёРЅС„РѕСЂРјР°С†РёСЏ Рѕ РїРѕРїС‹С‚РєРµ', responses={200: ApiAttemptDetailSerializer})
 class ApiAttemptDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -426,12 +496,12 @@ class ApiAttemptDetailView(APIView):
         )
         user = request.user
         if attempt.student_id != user.id and not (user.is_teacher and attempt.quiz.course.owner_id == user.id):
-            raise PermissionDenied('Нет доступа к этой попытке.')
+            raise PermissionDenied('РќРµС‚ РґРѕСЃС‚СѓРїР° Рє СЌС‚РѕР№ РїРѕРїС‹С‚РєРµ.')
         return Response(build_attempt_payload(attempt, user))
 
 
 @extend_schema(
-    summary='Подача апелляции по попытке',
+    summary='РџРѕРґР°С‡Р° Р°РїРµР»Р»СЏС†РёРё РїРѕ РїРѕРїС‹С‚РєРµ',
     request=ApiAttemptAppealRequestSerializer,
     responses={200: ApiAttemptAppealSerializer, 201: ApiAttemptAppealSerializer},
 )
@@ -445,9 +515,9 @@ class ApiAttemptAppealView(APIView):
         )
         ensure_student(request.user)
         if attempt.student_id != request.user.id:
-            raise PermissionDenied('Можно подать апелляцию только по своей попытке.')
+            raise PermissionDenied('РњРѕР¶РЅРѕ РїРѕРґР°С‚СЊ Р°РїРµР»Р»СЏС†РёСЋ С‚РѕР»СЊРєРѕ РїРѕ СЃРІРѕРµР№ РїРѕРїС‹С‚РєРµ.')
         if attempt.status != AttemptStatus.SUBMITTED:
-            raise ValidationError({'detail': 'Апелляция доступна только для завершенной попытки.'})
+            raise ValidationError({'detail': 'РђРїРµР»Р»СЏС†РёСЏ РґРѕСЃС‚СѓРїРЅР° С‚РѕР»СЊРєРѕ РґР»СЏ Р·Р°РІРµСЂС€РµРЅРЅРѕР№ РїРѕРїС‹С‚РєРё.'})
 
         serializer = ApiAttemptAppealRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -460,7 +530,7 @@ class ApiAttemptAppealView(APIView):
             },
         )
         if not created and appeal.status != AppealStatus.PENDING:
-            raise ValidationError({'detail': 'Апелляция уже рассмотрена преподавателем.'})
+            raise ValidationError({'detail': 'РђРїРµР»Р»СЏС†РёСЏ СѓР¶Рµ СЂР°СЃСЃРјРѕС‚СЂРµРЅР° РїСЂРµРїРѕРґР°РІР°С‚РµР»РµРј.'})
 
         if not created:
             appeal.message = serializer.validated_data['message']
@@ -476,7 +546,7 @@ class ApiAttemptAppealView(APIView):
 
 
 @extend_schema(
-    summary='Рассмотрение апелляции преподавателем',
+    summary='Р Р°СЃСЃРјРѕС‚СЂРµРЅРёРµ Р°РїРµР»Р»СЏС†РёРё РїСЂРµРїРѕРґР°РІР°С‚РµР»РµРј',
     request=ApiAttemptAppealReviewRequestSerializer,
     responses={200: ApiAttemptAppealSerializer},
 )
@@ -509,7 +579,7 @@ class ApiAttemptAppealReviewView(APIView):
 
 
 @extend_schema(
-    summary='Автосохранение черновика попытки',
+    summary='РђРІС‚РѕСЃРѕС…СЂР°РЅРµРЅРёРµ С‡РµСЂРЅРѕРІРёРєР° РїРѕРїС‹С‚РєРё',
     request=ApiAttemptDraftSaveRequestSerializer,
     responses={200: ApiAttemptDraftSerializer},
 )
@@ -523,9 +593,9 @@ class ApiAttemptDraftSaveView(APIView):
         )
         ensure_student(request.user)
         if attempt.student_id != request.user.id:
-            raise PermissionDenied('Можно сохранять только свои черновики.')
+            raise PermissionDenied('РњРѕР¶РЅРѕ СЃРѕС…СЂР°РЅСЏС‚СЊ С‚РѕР»СЊРєРѕ СЃРІРѕРё С‡РµСЂРЅРѕРІРёРєРё.')
         if attempt.status == AttemptStatus.SUBMITTED:
-            raise ValidationError({'detail': 'Нельзя сохранять черновик для завершенной попытки.'})
+            raise ValidationError({'detail': 'РќРµР»СЊР·СЏ СЃРѕС…СЂР°РЅСЏС‚СЊ С‡РµСЂРЅРѕРІРёРє РґР»СЏ Р·Р°РІРµСЂС€РµРЅРЅРѕР№ РїРѕРїС‹С‚РєРё.'})
 
         serializer = ApiAttemptDraftSaveRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -543,12 +613,12 @@ class ApiAttemptDraftSaveView(APIView):
         return Response(ApiAttemptDraftSerializer(payload).data)
 
 @extend_schema(
-    summary='Отправка попытки на проверку',
+    summary='РћС‚РїСЂР°РІРєР° РїРѕРїС‹С‚РєРё РЅР° РїСЂРѕРІРµСЂРєСѓ',
     request=ApiAttemptSubmitRequestSerializer,
     responses={200: ApiAttemptDetailSerializer},
     examples=[
         OpenApiExample(
-            'Пример тела запроса',
+            'РџСЂРёРјРµСЂ С‚РµР»Р° Р·Р°РїСЂРѕСЃР°',
             value={'answers': {'1': [2], '2': [4, 6]}},
             request_only=True,
         )
@@ -564,9 +634,9 @@ class ApiAttemptSubmitView(APIView):
         )
         ensure_student(request.user)
         if attempt.student_id != request.user.id:
-            raise PermissionDenied('Можно отправлять только свои попытки.')
+            raise PermissionDenied('РњРѕР¶РЅРѕ РѕС‚РїСЂР°РІР»СЏС‚СЊ С‚РѕР»СЊРєРѕ СЃРІРѕРё РїРѕРїС‹С‚РєРё.')
         if attempt.status == AttemptStatus.SUBMITTED:
-            raise ValidationError({'detail': 'Попытка уже завершена.'})
+            raise ValidationError({'detail': 'РџРѕРїС‹С‚РєР° СѓР¶Рµ Р·Р°РІРµСЂС€РµРЅР°.'})
 
         serializer = ApiAttemptSubmitRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -574,3 +644,4 @@ class ApiAttemptSubmitView(APIView):
         attempt.refresh_from_db()
 
         return Response(build_attempt_payload(attempt, request.user))
+

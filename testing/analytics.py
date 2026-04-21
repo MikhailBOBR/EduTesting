@@ -1,6 +1,6 @@
 from django.db.models import Avg, Q
 
-from .models import Answer, Attempt, AttemptStatus, Enrollment
+from .models import Answer, Attempt, AttemptStatus
 
 
 def _normalize_topic(topic):
@@ -26,6 +26,23 @@ def _status_payload(accuracy_percent):
         'label': 'Зона риска',
         'recommendation': 'Тема требует повторения. Стоит вернуться к теории и пройти контроль еще раз.',
     }
+
+
+def _get_previous_submitted_attempt(attempt):
+    return (
+        Attempt.objects.filter(
+            quiz=attempt.quiz,
+            student=attempt.student,
+            status=AttemptStatus.SUBMITTED,
+        )
+        .exclude(pk=attempt.pk)
+        .filter(
+            Q(submitted_at__lt=attempt.submitted_at)
+            | Q(submitted_at=attempt.submitted_at, pk__lt=attempt.pk)
+        )
+        .order_by('-submitted_at', '-pk')
+        .first()
+    )
 
 
 def _build_topic_rows(answer_queryset, *, include_students=False, include_attempts=False):
@@ -106,20 +123,7 @@ def build_attempt_topic_insights(attempt):
 
 
 def build_attempt_comparison(attempt):
-    previous_attempt = (
-        Attempt.objects.filter(
-            quiz=attempt.quiz,
-            student=attempt.student,
-            status=AttemptStatus.SUBMITTED,
-        )
-        .exclude(pk=attempt.pk)
-        .filter(
-            Q(submitted_at__lt=attempt.submitted_at)
-            | Q(submitted_at=attempt.submitted_at, pk__lt=attempt.pk)
-        )
-        .order_by('-submitted_at', '-pk')
-        .first()
-    )
+    previous_attempt = _get_previous_submitted_attempt(attempt)
     if previous_attempt is None:
         return None
 
@@ -174,6 +178,220 @@ def build_attempt_comparison(attempt):
     }
 
 
+def build_attempt_integrity_flags(attempt):
+    if attempt.status != AttemptStatus.SUBMITTED:
+        return []
+
+    flags = []
+    effective_limit_seconds = max(attempt.effective_time_limit_minutes * 60, 60)
+    fast_completion_threshold = max(300, round(effective_limit_seconds * 0.25))
+    perfect_speed_threshold = max(240, round(effective_limit_seconds * 0.35))
+
+    if attempt.score_percent == 100 and attempt.duration_seconds <= perfect_speed_threshold:
+        flags.append(
+            {
+                'code': 'perfect_speed',
+                'severity': 'high',
+                'title': 'Идеальный результат за короткое время',
+                'message': (
+                    f'Попытка завершена за {attempt.duration_minutes} мин. '
+                    f'при лимите {attempt.effective_time_limit_minutes} мин. и результате 100%.'
+                ),
+            }
+        )
+    elif attempt.score_percent >= max(attempt.quiz.passing_score, 70) and attempt.duration_seconds <= fast_completion_threshold:
+        flags.append(
+            {
+                'code': 'fast_completion',
+                'severity': 'medium',
+                'title': 'Слишком быстрое завершение',
+                'message': (
+                    f'Попытка завершена за {attempt.duration_minutes} мин. '
+                    f'при лимите {attempt.effective_time_limit_minutes} мин. и достаточно высоком результате.'
+                ),
+            }
+        )
+
+    previous_attempt = _get_previous_submitted_attempt(attempt)
+    if previous_attempt is not None:
+        score_delta = attempt.score_percent - previous_attempt.score_percent
+        if score_delta >= 35 and attempt.score_percent >= max(attempt.quiz.passing_score, 70):
+            flags.append(
+                {
+                    'code': 'sharp_improvement',
+                    'severity': 'high' if score_delta >= 50 else 'medium',
+                    'title': 'Резкий скачок результата',
+                    'message': (
+                        f'Результат вырос с {previous_attempt.score_percent}% '
+                        f'до {attempt.score_percent}% за один переход между попытками.'
+                    ),
+                }
+            )
+
+    return flags
+
+
+def summarize_integrity_flags(flags):
+    if not flags:
+        return {
+            'risk_level': 'none',
+            'risk_label': 'Нет флагов',
+            'risk_score': 0,
+        }
+
+    has_high = any(flag['severity'] == 'high' for flag in flags)
+    return {
+        'risk_level': 'high' if has_high else 'medium',
+        'risk_label': 'Высокий риск' if has_high else 'Требует внимания',
+        'risk_score': sum(60 if flag['severity'] == 'high' else 35 for flag in flags),
+    }
+
+
+def build_course_integrity_overview(course, limit=12):
+    attempts = (
+        Attempt.objects.filter(
+            quiz__course=course,
+            status=AttemptStatus.SUBMITTED,
+        )
+        .select_related('student', 'quiz')
+        .order_by('-submitted_at', '-pk')
+    )
+    rows = []
+    flagged_attempts_count = 0
+    high_risk_attempts_count = 0
+    flagged_student_ids = set()
+
+    for attempt in attempts:
+        flags = build_attempt_integrity_flags(attempt)
+        if not flags:
+            continue
+
+        summary = summarize_integrity_flags(flags)
+        flagged_attempts_count += 1
+        flagged_student_ids.add(attempt.student_id)
+        if summary['risk_level'] == 'high':
+            high_risk_attempts_count += 1
+
+        if len(rows) < limit:
+            rows.append(
+                {
+                    'attempt': attempt,
+                    'flags': flags,
+                    **summary,
+                }
+            )
+
+    return {
+        'flagged_attempts_count': flagged_attempts_count,
+        'high_risk_attempts_count': high_risk_attempts_count,
+        'students_count': len(flagged_student_ids),
+        'rows': rows,
+    }
+
+
+def build_student_achievements(student, *, course=None):
+    attempts = (
+        Attempt.objects.filter(
+            student=student,
+            status=AttemptStatus.SUBMITTED,
+        )
+        .select_related('quiz', 'quiz__course')
+        .order_by('submitted_at', 'pk')
+    )
+    if course is not None:
+        attempts = attempts.filter(quiz__course=course)
+
+    attempts = list(attempts)
+    attempts_by_course = {}
+    for attempt in attempts:
+        attempts_by_course.setdefault(attempt.quiz.course_id, []).append(attempt)
+
+    achievements = []
+    for course_attempts in attempts_by_course.values():
+        first_attempt = course_attempts[0]
+        course_obj = first_attempt.quiz.course
+        achievements.append(
+            {
+                'code': 'first_finish',
+                'level': 'bronze',
+                'title': 'Первый финиш',
+                'description': f'Первая завершенная попытка по курсу "{course_obj.title}".',
+                'awarded_at': first_attempt.submitted_at or first_attempt.created_at,
+                'course': course_obj,
+                'attempt': first_attempt,
+            }
+        )
+
+        perfect_attempt = next((attempt for attempt in course_attempts if attempt.score_percent == 100), None)
+        if perfect_attempt is not None:
+            achievements.append(
+                {
+                    'code': 'perfect_score',
+                    'level': 'gold',
+                    'title': 'Идеальный результат',
+                    'description': 'Получен результат 100% по одной из попыток курса.',
+                    'awarded_at': perfect_attempt.submitted_at or perfect_attempt.created_at,
+                    'course': course_obj,
+                    'attempt': perfect_attempt,
+                }
+            )
+
+        streak = []
+        streak_attempt = None
+        for attempt in course_attempts:
+            if attempt.is_passed:
+                streak.append(attempt)
+                if len(streak) >= 3:
+                    streak_attempt = attempt
+                    break
+            else:
+                streak = []
+        if streak_attempt is not None:
+            achievements.append(
+                {
+                    'code': 'three_passes',
+                    'level': 'silver',
+                    'title': 'Серия успехов',
+                    'description': 'Три подряд завершенные попытки с проходным результатом.',
+                    'awarded_at': streak_attempt.submitted_at or streak_attempt.created_at,
+                    'course': course_obj,
+                    'attempt': streak_attempt,
+                }
+            )
+
+        comeback_attempt = None
+        for attempt in course_attempts:
+            previous_attempt = _get_previous_submitted_attempt(attempt)
+            if previous_attempt is None:
+                continue
+            if (
+                attempt.quiz_id == previous_attempt.quiz_id
+                and attempt.score_percent - previous_attempt.score_percent >= 30
+                and attempt.score_percent >= max(attempt.quiz.passing_score, 70)
+            ):
+                comeback_attempt = attempt
+                break
+        if comeback_attempt is not None:
+            achievements.append(
+                {
+                    'code': 'strong_comeback',
+                    'level': 'silver',
+                    'title': 'Сильный прогресс',
+                    'description': 'Результат по одному из тестов заметно вырос по сравнению с предыдущей попыткой.',
+                    'awarded_at': comeback_attempt.submitted_at or comeback_attempt.created_at,
+                    'course': course_obj,
+                    'attempt': comeback_attempt,
+                }
+            )
+
+    return sorted(achievements, key=lambda item: item['awarded_at'], reverse=True)
+
+
+def build_attempt_unlocked_achievements(attempt):
+    achievements = build_student_achievements(attempt.student, course=attempt.quiz.course)
+    return [item for item in achievements if item['attempt'].pk == attempt.pk]
+
+
 def build_student_topic_diagnostics(course, student):
     answers = (
         Answer.objects.filter(
@@ -186,7 +404,11 @@ def build_student_topic_diagnostics(course, student):
     )
     topic_rows = _build_topic_rows(answers)
     weak_topics = [row for row in topic_rows if row['status_code'] == 'risk']
-    overall_accuracy = round((sum(row['correct_answers'] for row in topic_rows) / sum(row['total_questions'] for row in topic_rows)) * 100) if topic_rows else 0
+    overall_accuracy = (
+        round((sum(row['correct_answers'] for row in topic_rows) / sum(row['total_questions'] for row in topic_rows)) * 100)
+        if topic_rows
+        else 0
+    )
     stable_topics_count = sum(1 for row in topic_rows if row['status_code'] == 'stable')
 
     recommendations = []

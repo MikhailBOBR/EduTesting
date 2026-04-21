@@ -388,6 +388,23 @@ class ApiAttemptComparisonSerializer(serializers.Serializer):
     unchanged_topics_count = serializers.IntegerField()
 
 
+class ApiAttemptIntegrityFlagSerializer(serializers.Serializer):
+    code = serializers.CharField()
+    severity = serializers.CharField()
+    title = serializers.CharField()
+    message = serializers.CharField()
+
+
+class ApiStudentAchievementSerializer(serializers.Serializer):
+    code = serializers.CharField()
+    level = serializers.CharField()
+    title = serializers.CharField()
+    description = serializers.CharField()
+    awarded_at = serializers.DateTimeField()
+    attempt_id = serializers.IntegerField()
+    course = ApiCourseReferenceSerializer()
+
+
 class ApiAttemptDetailSerializer(serializers.Serializer):
     attempt = ApiAttemptSummarySerializer()
     answers = ApiAttemptAnswerSerializer(many=True)
@@ -397,6 +414,8 @@ class ApiAttemptDetailSerializer(serializers.Serializer):
     appeal = ApiAttemptAppealSerializer(allow_null=True)
     show_answer_key = serializers.BooleanField()
     comparison = ApiAttemptComparisonSerializer(allow_null=True)
+    integrity_flags = ApiAttemptIntegrityFlagSerializer(many=True)
+    new_achievements = ApiStudentAchievementSerializer(many=True)
 
 
 class ApiAttemptStartResponseSerializer(serializers.Serializer):
@@ -476,6 +495,8 @@ class ApiQuizAttemptListSerializer(serializers.ModelSerializer):
     student_name = serializers.SerializerMethodField()
     academic_group = serializers.CharField(source='student.academic_group', read_only=True)
     has_review = serializers.SerializerMethodField()
+    integrity_flags_count = serializers.IntegerField(read_only=True)
+    highest_integrity_severity = serializers.CharField(read_only=True)
 
     class Meta:
         model = Attempt
@@ -488,6 +509,8 @@ class ApiQuizAttemptListSerializer(serializers.ModelSerializer):
             'score_points',
             'score_percent',
             'has_review',
+            'integrity_flags_count',
+            'highest_integrity_severity',
         )
 
     @extend_schema_field(serializers.CharField())
@@ -502,6 +525,26 @@ class ApiQuizAttemptListSerializer(serializers.ModelSerializer):
 class ApiQuizAttemptsResponseSerializer(serializers.Serializer):
     quiz = ApiQuizReferenceSerializer()
     attempts = ApiQuizAttemptListSerializer(many=True)
+
+
+class ApiCourseIntegrityAttemptSerializer(serializers.Serializer):
+    attempt_id = serializers.IntegerField()
+    submitted_at = serializers.DateTimeField()
+    score_percent = serializers.IntegerField()
+    duration_minutes = serializers.FloatField()
+    risk_level = serializers.CharField()
+    risk_label = serializers.CharField()
+    student = ApiUserSerializer()
+    quiz = ApiQuizReferenceSerializer()
+    flags = ApiAttemptIntegrityFlagSerializer(many=True)
+
+
+class ApiCourseIntegritySerializer(serializers.Serializer):
+    course = ApiCourseReferenceSerializer()
+    flagged_attempts_count = serializers.IntegerField()
+    high_risk_attempts_count = serializers.IntegerField()
+    students_count = serializers.IntegerField()
+    attempts = ApiCourseIntegrityAttemptSerializer(many=True)
 
 
 class ApiAnalyticsTopicRowSerializer(serializers.Serializer):
