@@ -1,5 +1,11 @@
 # Демонстрация API
 
+Сопутствующие материалы:
+
+- [README.md](../README.md)
+- [Wiki: API и интеграции](wiki/api.md)
+- [Wiki: релизная проверка](wiki/release-checklist.md)
+
 ## Что покрывает API
 
 API в EduTesting дополняет основной web-интерфейс и позволяет показать ключевые серверные сценарии:
@@ -27,8 +33,8 @@ http://127.0.0.1:8000/api/docs/
 
 В проекте уже подготовлены файлы:
 
-- [docs/EduTesting.postman_collection.json](</c:/Users/Михаил/Desktop/6semac/KyrsBACK/docs/EduTesting.postman_collection.json>)
-- [docs/EduTesting.postman_environment.json](</c:/Users/Михаил/Desktop/6semac/KyrsBACK/docs/EduTesting.postman_environment.json>)
+- [docs/EduTesting.postman_collection.json](EduTesting.postman_collection.json)
+- [docs/EduTesting.postman_environment.json](EduTesting.postman_environment.json)
 
 Что есть внутри коллекции:
 

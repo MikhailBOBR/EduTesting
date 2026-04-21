@@ -1,5 +1,11 @@
 # Описание проекта EduTesting
 
+См. также:
+
+- [README.md](../README.md)
+- [Wiki EduTesting](wiki/index.md)
+- [Релизная проверка](wiki/release-checklist.md)
+
 ## 1. Назначение системы
 
 EduTesting — веб-приложение для проведения онлайн-тестирования студентов.

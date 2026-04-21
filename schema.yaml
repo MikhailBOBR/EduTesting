@@ -17,7 +17,7 @@ paths:
   /api/appeals/{id}/review/:
     post:
       operationId: appeals_review_create
-      summary: Р Р°СЃСЃРјРѕС‚СЂРµРЅРёРµ Р°РїРµР»Р»СЏС†РёРё РїСЂРµРїРѕРґР°РІР°С‚РµР»РµРј
+      summary: Рассмотрение апелляции преподавателем
       parameters:
       - in: path
         name: id
@@ -51,7 +51,7 @@ paths:
   /api/attempts/{id}/:
     get:
       operationId: attempts_retrieve
-      summary: Р”РµС‚Р°Р»СЊРЅР°СЏ РёРЅС„РѕСЂРјР°С†РёСЏ Рѕ РїРѕРїС‹С‚РєРµ
+      summary: Детальная информация о попытке
       parameters:
       - in: path
         name: id
@@ -73,7 +73,7 @@ paths:
   /api/attempts/{id}/appeal/:
     post:
       operationId: attempts_appeal_create
-      summary: РџРѕРґР°С‡Р° Р°РїРµР»Р»СЏС†РёРё РїРѕ РїРѕРїС‹С‚РєРµ
+      summary: Подача апелляции по попытке
       parameters:
       - in: path
         name: id
@@ -113,7 +113,7 @@ paths:
   /api/attempts/{id}/draft/:
     post:
       operationId: attempts_draft_create
-      summary: РђРІС‚РѕСЃРѕС…СЂР°РЅРµРЅРёРµ С‡РµСЂРЅРѕРІРёРєР° РїРѕРїС‹С‚РєРё
+      summary: Автосохранение черновика попытки
       parameters:
       - in: path
         name: id
@@ -147,7 +147,7 @@ paths:
   /api/attempts/{id}/submit/:
     post:
       operationId: attempts_submit_create
-      summary: РћС‚РїСЂР°РІРєР° РїРѕРїС‹С‚РєРё РЅР° РїСЂРѕРІРµСЂРєСѓ
+      summary: Отправка попытки на проверку
       parameters:
       - in: path
         name: id
@@ -162,7 +162,7 @@ paths:
             schema:
               $ref: '#/components/schemas/ApiAttemptSubmitRequest'
             examples:
-              РџСЂРёРјРµСЂС‚РµР»Р°Р·Р°РїСЂРѕСЃР°:
+              ПримерТелаЗапроса:
                 value:
                   answers:
                     '1':
@@ -170,7 +170,7 @@ paths:
                     '2':
                     - 4
                     - 6
-                summary: РџСЂРёРјРµСЂ С‚РµР»Р° Р·Р°РїСЂРѕСЃР°
+                summary: Пример тела запроса
           application/x-www-form-urlencoded:
             schema:
               $ref: '#/components/schemas/ApiAttemptSubmitRequest'
@@ -191,10 +191,9 @@ paths:
   /api/auth/token/:
     post:
       operationId: auth_token_create
-      description: РђРІС‚РѕСЂРёР·СѓРµС‚ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ РїРѕ Р»РѕРіРёРЅСѓ
-        Рё РїР°СЂРѕР»СЋ Рё РІРѕР·РІСЂР°С‰Р°РµС‚ С‚РѕРєРµРЅ РґР»СЏ РґР°Р»СЊРЅРµР№С€РµР№
-        СЂР°Р±РѕС‚С‹ РІ Postman Рё Swagger.
-      summary: РџРѕР»СѓС‡РµРЅРёРµ С‚РѕРєРµРЅР° Р°РІС‚РѕСЂРёР·Р°С†РёРё
+      description: Авторизует пользователя по логину и паролю и возвращает токен для
+        дальнейшей работы в Postman и Swagger.
+      summary: Получение токена авторизации
       tags:
       - auth
       requestBody:
@@ -203,11 +202,11 @@ paths:
             schema:
               $ref: '#/components/schemas/ApiTokenRequest'
             examples:
-              РџСЂРёРјРµСЂР·Р°РїСЂРѕСЃР°:
+              ПримерЗапроса:
                 value:
                   username: student_demo
                   password: StudentDemo123!
-                summary: РџСЂРёРјРµСЂ Р·Р°РїСЂРѕСЃР°
+                summary: Пример запроса
           application/x-www-form-urlencoded:
             schema:
               $ref: '#/components/schemas/ApiTokenRequest'
@@ -229,7 +228,7 @@ paths:
   /api/courses/:
     get:
       operationId: courses_list
-      summary: РЎРїРёСЃРѕРє РѕРїСѓР±Р»РёРєРѕРІР°РЅРЅС‹С… РєСѓСЂСЃРѕРІ
+      summary: Список опубликованных курсов
       tags:
       - courses
       security:
@@ -271,7 +270,7 @@ paths:
   /api/courses/{id}/analytics/:
     get:
       operationId: courses_analytics_retrieve
-      summary: РђРЅР°Р»РёС‚РёРєР° РєСѓСЂСЃР° РґР»СЏ РїСЂРµРїРѕРґР°РІР°С‚РµР»СЏ
+      summary: Аналитика курса для преподавателя
       parameters:
       - in: path
         name: id
@@ -293,7 +292,7 @@ paths:
   /api/courses/{id}/enroll/:
     post:
       operationId: courses_enroll_create
-      summary: Р—Р°РїРёСЃСЊ СЃС‚СѓРґРµРЅС‚Р° РЅР° РєСѓСЂСЃ
+      summary: Запись студента на курс
       parameters:
       - in: path
         name: id
@@ -352,7 +351,7 @@ paths:
   /api/me/:
     get:
       operationId: me_retrieve
-      summary: "Р\x98РЅС„РѕСЂРјР°С†РёСЏ Рѕ С‚РµРєСѓС‰РµРј РїРѕР»СЊР·РѕРІР°С‚РµР»Рµ"
+      summary: Информация о текущем пользователе
       tags:
       - me
       security:
@@ -389,9 +388,9 @@ paths:
   /api/my/courses/:
     get:
       operationId: my_courses_list
-      description: Р”Р»СЏ СЃС‚СѓРґРµРЅС‚Р° РІРѕР·РІСЂР°С‰Р°РµС‚ РєСѓСЂСЃС‹ РїРѕ Р·Р°РїРёСЃРё,
-        РґР»СЏ РїСЂРµРїРѕРґР°РІР°С‚РµР»СЏ вЂ” СѓРїСЂР°РІР»СЏРµРјС‹Рµ РєСѓСЂСЃС‹.
-      summary: РњРѕРё РєСѓСЂСЃС‹
+      description: Для студента возвращает курсы по записи, для преподавателя — управляемые
+        курсы.
+      summary: Мои курсы
       tags:
       - my
       security:
@@ -409,7 +408,7 @@ paths:
   /api/quizzes/{id}/:
     get:
       operationId: quizzes_retrieve
-      summary: Р”РµС‚Р°Р»СЊРЅР°СЏ РёРЅС„РѕСЂРјР°С†РёСЏ Рѕ С‚РµСЃС‚Рµ
+      summary: Детальная информация о тесте
       parameters:
       - in: path
         name: id
@@ -432,7 +431,7 @@ paths:
   /api/quizzes/{id}/attempts/:
     get:
       operationId: quizzes_attempts_retrieve
-      summary: РЎРїРёСЃРѕРє РїРѕРїС‹С‚РѕРє РїРѕ С‚РµСЃС‚Сѓ РґР»СЏ РїСЂРµРїРѕРґР°РІР°С‚РµР»СЏ
+      summary: Список попыток по тесту для преподавателя
       parameters:
       - in: path
         name: id
@@ -454,7 +453,7 @@ paths:
   /api/quizzes/{id}/overrides/:
     get:
       operationId: quizzes_overrides_list
-      summary: РЎРїРёСЃРѕРє РёРЅРґРёРІРёРґСѓР°Р»СЊРЅС‹С… СѓСЃР»РѕРІРёР№ РїРѕ С‚РµСЃС‚Сѓ
+      summary: Список индивидуальных условий по тесту
       parameters:
       - in: path
         name: id
@@ -477,8 +476,7 @@ paths:
           description: ''
     post:
       operationId: quizzes_overrides_create
-      summary: РЎРѕР·РґР°РЅРёРµ РёР»Рё РѕР±РЅРѕРІР»РµРЅРёРµ РёРЅРґРёРІРёРґСѓР°Р»СЊРЅС‹С…
-        СѓСЃР»РѕРІРёР№
+      summary: Создание или обновление индивидуальных условий
       parameters:
       - in: path
         name: id
@@ -518,7 +516,7 @@ paths:
   /api/quizzes/{id}/start/:
     post:
       operationId: quizzes_start_create
-      summary: РЎС‚Р°СЂС‚ РїРѕРїС‹С‚РєРё РїРѕ С‚РµСЃС‚Сѓ
+      summary: Старт попытки по тесту
       parameters:
       - in: path
         name: id
@@ -703,9 +701,9 @@ paths:
   /api/stats/:
     get:
       operationId: stats_retrieve
-      description: Р’РѕР·РІСЂР°С‰Р°РµС‚ Р°РіСЂРµРіРёСЂРѕРІР°РЅРЅС‹Рµ РїРѕРєР°Р·Р°С‚РµР»Рё
-        РґР»СЏ РґРµРјРѕРЅСЃС‚СЂР°С†РёРё API РІ Swagger Рё Postman.
-      summary: РЎРІРѕРґРЅР°СЏ СЃС‚Р°С‚РёСЃС‚РёРєР° СЃРµСЂРІРёСЃР°
+      description: Возвращает агрегированные показатели для демонстрации API в Swagger
+        и Postman.
+      summary: Сводная статистика сервиса
       tags:
       - stats
       security:
