@@ -15,7 +15,11 @@
         </p>
     </div>
     <div class="button-row">
+        <a class="button button-secondary" href="{% url 'accounts:password_change' %}">Безопасность</a>
         <a class="button button-primary" href="{% url 'accounts:profile_edit' %}">Редактировать профиль</a>
+        {% if request.user.is_staff %}
+            <a class="button button-ghost" href="{% url 'admin:index' %}">Открыть админку</a>
+        {% endif %}
     </div>
 </section>
 
@@ -32,6 +36,45 @@
         <span class="metric__value">{{ request.user.email|default:"Не указана" }}</span>
         <span class="metric__label">Электронная почта</span>
     </article>
+</section>
+
+<section class="grid-2">
+    <article class="panel">
+        <div class="panel__header">
+            <div class="section-kicker">Безопасность</div>
+            <h2>Защита аккаунта</h2>
+        </div>
+        <div class="card-list">
+            <article class="card">
+                <h3>Хеширование паролей</h3>
+                <p class="muted">Пароли не хранятся в открытом виде и проходят стандартное безопасное хеширование Django.</p>
+            </article>
+            <article class="card">
+                <h3>Защита входа</h3>
+                <p class="muted">После серии неудачных попыток вход временно блокируется, чтобы снизить риск перебора пароля.</p>
+            </article>
+            <article class="card">
+                <h3>Быстрая смена пароля</h3>
+                <p class="muted">Пароль можно обновить в web-интерфейсе и через API без потери текущей рабочей сессии.</p>
+            </article>
+        </div>
+    </article>
+
+    {% if request.user.is_staff %}
+        <article class="panel">
+            <div class="panel__header">
+                <div class="section-kicker">Администрирование</div>
+                <h2>Системный доступ</h2>
+            </div>
+            <div class="card-list">
+                <article class="card">
+                    <h3>Панель администратора Django</h3>
+                    <p class="muted">Здесь доступны пользователи, курсы, тесты, попытки, уведомления, апелляции и индивидуальные условия.</p>
+                    <a href="{% url 'admin:index' %}">Перейти в админ-панель</a>
+                </article>
+            </div>
+        </article>
+    {% endif %}
 </section>
 
 <section class="panel">

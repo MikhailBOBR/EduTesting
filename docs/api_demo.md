@@ -8,20 +8,23 @@
 
 ## Что покрывает API
 
-API в EduTesting дополняет основной web-интерфейс и позволяет показать ключевые серверные сценарии:
+API в EduTesting дополняет основной web-интерфейс и позволяет показать ключевые
+серверные сценарии:
 
-- авторизацию по токену;
-- поток студента: запись на курс, старт попытки, автосохранение, отправка и просмотр результата;
-- вычисляемые достижения студента;
-- поток преподавателя: аналитика курса, индивидуальные условия, журнал попыток и апелляции;
-- контроль подозрительных попыток по курсу.
+- token auth и смену пароля
+- поток студента: запись на курс, старт попытки, автосохранение, отправку и просмотр результата
+- достижения студента
+- поток преподавателя: аналитику курса, индивидуальные условия, журнал попыток и апелляции
+- контроль подозрительных попыток
 
 ## Основные адреса
 
 - Swagger UI: `GET /api/docs/`
 - OpenAPI schema: `GET /api/schema/`
 - токен: `POST /api/auth/token/`
+- смена пароля: `POST /api/auth/password/change/`
 - текущий пользователь: `GET /api/me/`
+- админ-панель: `GET /admin/`
 
 Локальный адрес после запуска проекта:
 
@@ -36,18 +39,18 @@ http://127.0.0.1:8000/api/docs/
 - [docs/EduTesting.postman_collection.json](EduTesting.postman_collection.json)
 - [docs/EduTesting.postman_environment.json](EduTesting.postman_environment.json)
 
-Что есть внутри коллекции:
+Что есть в коллекции:
 
 - папка `Public Overview`
 - папка `Auth`
 - папка `Student Flow`
 - папка `Teacher Flow`
-- готовые обзорные запросы для статистики, списка курсов, описания курса и теста
+- папка `Admin Web`
 - автоматическое сохранение `student_token`
 - автоматическое сохранение `teacher_token`
 - автоматическое сохранение `attempt_id`
 - автоматическое сохранение `appeal_id`
-- готовые тела запросов для `draft`, `submit`, `appeal`, `override`
+- отдельные запросы для безопасной смены и восстановления пароля
 - встроенные Postman-tests, чтобы на скриншотах были видны успешные проверки ответов
 
 ## Что показать в Swagger
@@ -55,21 +58,23 @@ http://127.0.0.1:8000/api/docs/
 Минимальный сильный сценарий:
 
 1. `POST /api/auth/token/`
-2. `GET /api/stats/`
-3. `GET /api/courses/`
-4. `POST /api/quizzes/{id}/start/`
-5. `POST /api/attempts/{id}/draft/`
-6. `POST /api/attempts/{id}/submit/`
-7. `GET /api/my/achievements/`
-8. `GET /api/courses/{id}/analytics/`
-9. `GET /api/courses/{id}/integrity/`
+2. `POST /api/auth/password/change/`
+3. `GET /api/stats/`
+4. `GET /api/courses/`
+5. `POST /api/quizzes/{id}/start/`
+6. `POST /api/attempts/{id}/draft/`
+7. `POST /api/attempts/{id}/submit/`
+8. `GET /api/my/achievements/`
+9. `GET /api/courses/{id}/analytics/`
+10. `GET /api/courses/{id}/integrity/`
 
 Особенно хорошо смотрятся:
 
-- `GET /api/my/achievements/` — вычисляемые достижения без отдельной сущности в БД;
-- `GET /api/courses/{id}/integrity/` — преподавательский контроль подозрительных попыток;
-- `GET /api/attempts/{id}/` — результат попытки, сравнение с прошлой попыткой и новые достижения;
-- `GET /api/courses/{id}/analytics/` — тема курса, проблемные студенты и лидерборд.
+- `POST /api/auth/password/change/` — безопасность и полноценная работа с аккаунтом через API
+- `GET /api/my/achievements/` — вычисляемые достижения без отдельной сущности в БД
+- `GET /api/courses/{id}/integrity/` — преподавательский контроль подозрительных попыток
+- `GET /api/attempts/{id}/` — результат попытки, сравнение с прошлой попыткой и новые достижения
+- `GET /api/courses/{id}/analytics/` — тема курса, проблемные студенты и лидерборд
 
 ## Что показать в Postman
 
@@ -95,18 +100,26 @@ http://127.0.0.1:8000/api/docs/
 6. `POST /api/quizzes/{id}/overrides/`
 7. `POST /api/appeals/{id}/review/`
 
+### Сценарий безопасности и администрирования
+
+1. `POST /api/auth/password/change/`
+2. `GET /admin/login/`
+
 ## Рекомендуемый набор скриншотов
 
 Для сильной демонстрации работоспособности API удобно подготовить такие экраны:
 
 1. Swagger UI с авторизацией и раскрытым `POST /api/auth/token/`
-2. Swagger UI с `POST /api/attempts/{id}/submit/` и примером тела запроса
-3. Swagger UI с `GET /api/my/achievements/`
-4. Swagger UI с `GET /api/courses/{id}/analytics/`
-5. Swagger UI с `GET /api/courses/{id}/integrity/`
-6. Postman: успешное получение токена
-7. Postman: студенческий сценарий `start -> draft -> submit`
-8. Postman: преподавательский сценарий `analytics -> integrity -> review appeal`
+2. Swagger UI с `POST /api/auth/password/change/`
+3. Swagger UI с `POST /api/attempts/{id}/submit/`
+4. Swagger UI с `GET /api/my/achievements/`
+5. Swagger UI с `GET /api/courses/{id}/analytics/`
+6. Swagger UI с `GET /api/courses/{id}/integrity/`
+7. Postman: успешное получение токена
+8. Postman: студентческий сценарий `start -> draft -> submit`
+9. Postman: смена пароля через API
+10. Postman: преподавательский сценарий `analytics -> integrity -> review appeal`
+11. Postman: открытие страницы `/admin/login/`
 
 ## Пример авторизации
 
@@ -128,6 +141,22 @@ Content-Type: application/json
 
 ```http
 Authorization: Token ваш_токен
+```
+
+## Пример смены пароля
+
+```http
+POST /api/auth/password/change/
+Content-Type: application/json
+Authorization: Token ваш_токен
+```
+
+```json
+{
+  "current_password": "StudentDemo123!",
+  "new_password": "StudentDemo456!",
+  "new_password_confirm": "StudentDemo456!"
+}
 ```
 
 ## Пример автосохранения черновика
@@ -168,6 +197,7 @@ Authorization: Token ваш_токен
 
 - студент: `student_demo` / `StudentDemo123!`
 - преподаватель: `teacher_demo` / `TeacherDemo123!`
+- администратор: `admin_demo` / `AdminDemo123!`
 
 ## Примечание по demo-id
 
@@ -177,4 +207,5 @@ Authorization: Token ваш_токен
 - `quiz_id = 1`
 - `override_student_id = 6`
 
-Если после повторного наполнения базы идентификаторы изменятся, достаточно обновить их один раз в Postman environment.
+Если после повторного наполнения базы идентификаторы изменятся, достаточно обновить их
+один раз в Postman environment.

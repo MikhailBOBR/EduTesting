@@ -1,3 +1,4 @@
+from django.core.cache import cache
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -53,6 +54,9 @@ class AccountsBaseMixin:
             correct_answers_count=4,
         )
 
+    def setUp(self):
+        cache.clear()
+
 
 class SignUpViewTests(AccountsBaseMixin, TestCase):
     def test_signup_creates_student_account(self):
@@ -74,6 +78,8 @@ class SignUpViewTests(AccountsBaseMixin, TestCase):
         user = User.objects.get(username='new_student')
         self.assertEqual(user.role, UserRole.STUDENT)
         self.assertEqual(user.academic_group, 'IS-31')
+        self.assertNotEqual(user.password, 'StrongPass123!')
+        self.assertTrue(user.check_password('StrongPass123!'))
 
     def test_signup_rejects_duplicate_email(self):
         response = self.client.post(
@@ -123,6 +129,45 @@ class AuthenticationAndProfileTests(AccountsBaseMixin, TestCase):
         self.assertEqual(self.teacher.academic_group, 'Teachers')
         self.assertEqual(self.teacher.bio, 'Curator of backend disciplines.')
 
+    def test_authenticated_user_can_change_password(self):
+        self.client.force_login(self.student)
+
+        response = self.client.post(
+            reverse('accounts:password_change'),
+            {
+                'old_password': 'StudentPass123!',
+                'new_password1': 'StudentPass456!',
+                'new_password2': 'StudentPass456!',
+            },
+        )
+
+        self.assertRedirects(response, reverse('accounts:profile'))
+        self.student.refresh_from_db()
+        self.assertTrue(self.student.check_password('StudentPass456!'))
+
+    def test_login_is_temporarily_blocked_after_repeated_failures(self):
+        login_url = reverse('accounts:login')
+
+        for _ in range(5):
+            self.client.post(
+                login_url,
+                {
+                    'username': self.student.username,
+                    'password': 'WrongPassword123!',
+                },
+            )
+
+        blocked_response = self.client.post(
+            login_url,
+            {
+                'username': self.student.username,
+                'password': 'StudentPass123!',
+            },
+        )
+
+        self.assertEqual(blocked_response.status_code, 200)
+        self.assertContains(blocked_response, 'Слишком много неудачных попыток входа')
+
     def test_student_profile_context_contains_counts_and_recent_activity(self):
         self.client.force_login(self.student)
         response = self.client.get(reverse('accounts:profile'))
@@ -140,3 +185,13 @@ class AuthenticationAndProfileTests(AccountsBaseMixin, TestCase):
         self.assertEqual(response.context['courses_count'], 1)
         self.assertEqual(response.context['tests_count'], 1)
         self.assertEqual(len(response.context['recent_activity']), 1)
+
+    def test_staff_profile_shows_admin_link(self):
+        self.teacher.is_staff = True
+        self.teacher.save(update_fields=['is_staff'])
+        self.client.force_login(self.teacher)
+
+        response = self.client.get(reverse('accounts:profile'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse('admin:index'))

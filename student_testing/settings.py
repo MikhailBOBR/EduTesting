@@ -1,11 +1,24 @@
+import os
 from pathlib import Path
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = 'django-insecure-jb7nq!-8(iaix3!eb+1*6=3l0tq7vk0)^pyfdxs#954#-jv_0f'
-DEBUG = True
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost', 'testserver']
+SECRET_KEY = os.getenv(
+    'DJANGO_SECRET_KEY',
+    'django-insecure-jb7nq!-8(iaix3!eb+1*6=3l0tq7vk0)^pyfdxs#954#-jv_0f',
+)
+DEBUG = os.getenv('DJANGO_DEBUG', '1') == '1'
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.getenv('DJANGO_ALLOWED_HOSTS', '127.0.0.1,localhost,testserver').split(',')
+    if host.strip()
+]
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv('DJANGO_CSRF_TRUSTED_ORIGINS', '').split(',')
+    if origin.strip()
+]
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -74,6 +87,12 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+PASSWORD_HASHERS = [
+    'django.contrib.auth.hashers.ScryptPasswordHasher',
+    'django.contrib.auth.hashers.PBKDF2PasswordHasher',
+    'django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher',
+]
+
 LANGUAGE_CODE = 'ru-ru'
 TIME_ZONE = 'Europe/Moscow'
 
@@ -87,6 +106,26 @@ LOGIN_URL = 'accounts:login'
 LOGIN_REDIRECT_URL = 'testing:dashboard'
 LOGOUT_REDIRECT_URL = 'testing:home'
 AUTH_USER_MODEL = 'accounts.User'
+
+LOGIN_FAILURE_LIMIT = 5
+LOGIN_LOCKOUT_SECONDS = 300
+
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_HTTPONLY = True
+CSRF_COOKIE_SAMESITE = 'Lax'
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
+SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin'
+X_FRAME_OPTIONS = 'DENY'
+
+if not DEBUG:
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_SSL_REDIRECT = True
+    SECURE_HSTS_SECONDS = 3600
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 TEST_RUNNER = 'testing.test_runner.PrettyDiscoverRunner'
@@ -109,16 +148,18 @@ REST_FRAMEWORK = {
 SPECTACULAR_SETTINGS = {
     'TITLE': 'EduTesting API',
     'DESCRIPTION': (
-        'Полноценный API платформы онлайн-тестирования студентов с акцентом на практические backend-сценарии: '
-        'автосохранение черновика, сравнение попыток, достижения, аналитика курса, индивидуальные условия, '
-        'апелляции и контроль подозрительных попыток.\n\n'
+        'Полноценный API платформы онлайн-тестирования студентов с акцентом на '
+        'практические backend-сценарии: безопасную авторизацию, автосохранение '
+        'черновика, сравнение попыток, достижения, аналитику курса, индивидуальные '
+        'условия, апелляции, контроль подозрительных попыток и административное '
+        'сопровождение проекта.\n\n'
         'Что особенно удобно демонстрировать в Swagger UI:\n'
-        '* токен-авторизацию и разделение ролей пользователя;\n'
-        '* студенческий поток: запись на курс, старт попытки, автосохранение, отправка, результат и достижения;\n'
-        '* преподавательский поток: аналитика курса, integrity-контроль, индивидуальные условия и рассмотрение апелляций;\n'
-        '* публичные обзорные методы: статистику сервиса, каталог курсов, описание курса и теста.\n\n'
-        'Для защищенных методов сначала выполните `POST /api/auth/token/`, затем нажмите `Authorize` '
-        'и передайте токен в формате `Token ваш_токен`.'
+        '* токен-авторизацию, смену пароля и защиту от перебора паролей;\n'
+        '* студенческий поток: запись на курс, старт попытки, автосохранение, отправку и просмотр результата;\n'
+        '* преподавательский поток: аналитику курса, integrity-контроль, индивидуальные условия и рассмотрение апелляций;\n'
+        '* обзорные публичные методы: статистику сервиса, каталог курсов и описание тестов.\n\n'
+        'Для защищенных методов сначала выполните `POST /api/auth/token/`, затем нажмите '
+        '`Authorize` и передайте токен в формате `Token ваш_токен`.'
     ),
     'VERSION': '1.0.0',
     'CONTACT': {
@@ -136,7 +177,7 @@ SPECTACULAR_SETTINGS = {
     'TAGS': [
         {
             'name': 'auth',
-            'description': 'Получение токена для работы в Swagger UI и Postman.',
+            'description': 'Получение токена, защищенная смена пароля и контроль неудачных попыток входа.',
         },
         {
             'name': 'me',
@@ -156,11 +197,11 @@ SPECTACULAR_SETTINGS = {
         },
         {
             'name': 'quizzes',
-            'description': 'Тесты курса, старт попытки, индивидуальные условия и журнал попыток.',
+            'description': 'Тесты курса, старт попытки, индивидуальные условия и журнал завершенных работ.',
         },
         {
             'name': 'attempts',
-            'description': 'Черновики, итог попытки, сравнение с прошлой попыткой и апелляции.',
+            'description': 'Черновики, результат попытки, сравнение с прошлой попыткой и апелляции.',
         },
         {
             'name': 'appeals',

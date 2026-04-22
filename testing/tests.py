@@ -1,6 +1,7 @@
 import json
 from datetime import timedelta
 
+from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.urls import reverse
@@ -1278,6 +1279,9 @@ class TeacherManagementTests(TestingBaseMixin, TestCase):
 
 
 class ApiTests(TestingBaseMixin, TestCase):
+    def setUp(self):
+        cache.clear()
+
     def auth_headers(self, user):
         token, _ = Token.objects.get_or_create(user=user)
         return {'HTTP_AUTHORIZATION': f'Token {token.key}'}
@@ -1294,6 +1298,65 @@ class ApiTests(TestingBaseMixin, TestCase):
         self.assertIn('token', data)
         self.assertEqual(data['user']['username'], self.student.username)
         self.assertEqual(data['user']['role'], UserRole.STUDENT)
+
+    def test_api_token_auth_blocks_after_repeated_failures(self):
+        url = reverse('testing_api:token_auth')
+
+        for _ in range(5):
+            response = self.client.post(
+                url,
+                {'username': self.student.username, 'password': 'WrongPassword123!'},
+                content_type='application/json',
+            )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('Слишком много', response.json()['detail'])
+
+        blocked_response = self.client.post(
+            url,
+            {'username': self.student.username, 'password': 'StudentPass123!'},
+            content_type='application/json',
+        )
+
+        self.assertEqual(blocked_response.status_code, 400)
+        self.assertIn('Слишком много', blocked_response.json()['detail'])
+
+    def test_api_password_change_rotates_token_and_updates_password(self):
+        token_response = self.client.post(
+            reverse('testing_api:token_auth'),
+            {'username': self.student.username, 'password': 'StudentPass123!'},
+            content_type='application/json',
+        )
+        old_token = token_response.json()['token']
+
+        response = self.client.post(
+            reverse('testing_api:password_change'),
+            {
+                'current_password': 'StudentPass123!',
+                'new_password': 'StudentPass456!',
+                'new_password_confirm': 'StudentPass456!',
+            },
+            content_type='application/json',
+            **self.auth_headers(self.student),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertIn('token', payload)
+        self.assertNotEqual(payload['token'], old_token)
+
+        old_token_response = self.client.get(
+            reverse('testing_api:me'),
+            HTTP_AUTHORIZATION=f'Token {old_token}',
+        )
+        self.assertEqual(old_token_response.status_code, 401)
+
+        new_login_response = self.client.post(
+            reverse('testing_api:token_auth'),
+            {'username': self.student.username, 'password': 'StudentPass456!'},
+            content_type='application/json',
+        )
+        self.assertEqual(new_login_response.status_code, 200)
 
     def test_api_me_requires_authentication(self):
         unauthorized = self.client.get(reverse('testing_api:me'))
@@ -1576,3 +1639,13 @@ class ApiTests(TestingBaseMixin, TestCase):
         self.assertEqual(docs_response.status_code, 200)
         self.assertIn(b'openapi', schema_response.content.lower())
         self.assertContains(docs_response, 'Быстрый старт API')
+
+    def test_staff_dashboard_shows_admin_panel_link(self):
+        self.teacher.is_staff = True
+        self.teacher.save(update_fields=['is_staff'])
+        self.client.force_login(self.teacher)
+
+        response = self.client.get(reverse('testing:dashboard'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse('admin:index'))

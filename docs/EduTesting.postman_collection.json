@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "84fb9f7b-7f49-4c0d-91d8-4ad3f4d56401",
     "name": "EduTesting API Demo",
-    "description": "Коллекция для демонстрации ключевых API-сценариев EduTesting: публичный обзор сервиса, авторизация, студенческий поток прохождения теста, достижения, аналитика, контроль подозрительных попыток, индивидуальные условия и апелляции.",
+    "description": "Коллекция для демонстрации ключевых API-сценариев EduTesting: публичный обзор сервиса, авторизация, безопасность аккаунта, студенческий поток прохождения теста, аналитика, контроль подозрительных попыток, индивидуальные условия и апелляции.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -119,12 +119,34 @@
             "description": "Возвращает OpenAPI schema в выбранном формате."
           },
           "response": []
+        },
+        {
+          "name": "Swagger UI Page",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Swagger UI page returned 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/docs/",
+            "description": "Открывает оформленный Swagger UI."
+          },
+          "response": []
         }
       ]
     },
     {
       "name": "Auth",
-      "description": "Получение токенов для студента и преподавателя с автоматическим сохранением в collection variables.",
+      "description": "Получение токенов и защищенная смена пароля с автоматическим сохранением переменных.",
       "item": [
         {
           "name": "Student Token",
@@ -213,12 +235,107 @@
             "description": "Получает токен преподавателя и сохраняет его в collection variable `teacher_token`."
           },
           "response": []
+        },
+        {
+          "name": "Student Change Password (Run Last)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Password change returned 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const data = pm.response.json();",
+                  "pm.test('New token returned after password change', function () {",
+                  "    pm.expect(data.token).to.be.a('string').and.not.empty;",
+                  "});",
+                  "if (data.token) {",
+                  "    pm.collectionVariables.set('student_token', data.token);",
+                  "    pm.environment.set('student_password', pm.environment.get('student_new_password'));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{auth_prefix}} {{student_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"current_password\": \"{{student_password}}\",\n  \"new_password\": \"{{student_new_password}}\",\n  \"new_password_confirm\": \"{{student_new_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{base_url}}/api/auth/password/change/",
+            "description": "Демонстрирует безопасную смену пароля через API. Запрос лучше запускать в конце демо."
+          },
+          "response": []
+        },
+        {
+          "name": "Student Restore Password",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Password restore returned 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const data = pm.response.json();",
+                  "if (data.token) {",
+                  "    pm.collectionVariables.set('student_token', data.token);",
+                  "    pm.environment.set('student_password', pm.environment.get('student_original_password'));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{auth_prefix}} {{student_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"current_password\": \"{{student_password}}\",\n  \"new_password\": \"{{student_original_password}}\",\n  \"new_password_confirm\": \"{{student_original_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{base_url}}/api/auth/password/change/",
+            "description": "Возвращает исходный пароль демо-студента после теста сценария безопасности."
+          },
+          "response": []
         }
       ]
     },
     {
       "name": "Student Flow",
-      "description": "Полный сценарий студента: вход, просмотр личных курсов, запись на курс, прохождение теста, результат, достижения и апелляция.",
+      "description": "Полный сценарий студента: вход, курсы, тест, результат, достижения и апелляция.",
       "item": [
         {
           "name": "Me",
@@ -376,7 +493,7 @@
               }
             },
             "url": "{{base_url}}/api/attempts/{{attempt_id}}/draft/",
-            "description": "Автосохраняет промежуточные ответы."
+            "description": "Автосохраняет промежуточные ответы студента."
           },
           "response": []
         },
@@ -722,6 +839,34 @@
             },
             "url": "{{base_url}}/api/appeals/{{appeal_id}}/review/",
             "description": "Рассматривает апелляцию и возвращает решение преподавателя."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Admin Web",
+      "description": "Небольшой блок для показа административного контура проекта.",
+      "item": [
+        {
+          "name": "Admin Login Page",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Admin login page returned 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/admin/login/",
+            "description": "Открывает страницу входа в административную панель Django."
           },
           "response": []
         }

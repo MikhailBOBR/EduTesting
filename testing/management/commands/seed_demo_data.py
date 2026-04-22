@@ -26,6 +26,7 @@ from testing.services import submit_attempt
 
 TEACHER_PASSWORD = 'TeacherDemo123!'
 STUDENT_PASSWORD = 'StudentDemo123!'
+ADMIN_PASSWORD = 'AdminDemo123!'
 
 TEACHERS = [
     ('teacher_demo', 'teacher@example.com', 'Анна', 'Соколова', 'Доцент кафедры веб-технологий.'),
@@ -407,6 +408,7 @@ class Command(BaseCommand):
         today = timezone.localdate()
         course_specs = build_course_specs()
 
+        admin_user = self._seed_admin_user()
         teachers = self._seed_teachers()
         students = self._seed_students()
         courses = {}
@@ -430,7 +432,29 @@ class Command(BaseCommand):
                 'индивидуальные условия и апелляции.'
             )
         )
-        self.stdout.write('Основные логины: teacher_demo / TeacherDemo123!, student_demo / StudentDemo123!')
+        self.stdout.write(
+            'Основные логины: '
+            'teacher_demo / TeacherDemo123!, '
+            'student_demo / StudentDemo123!, '
+            f'{admin_user.username} / {ADMIN_PASSWORD}'
+        )
+
+    def _seed_admin_user(self):
+        user, _ = User.objects.get_or_create(
+            username='admin_demo',
+            defaults={'email': 'admin@example.com'},
+        )
+        user.email = 'admin@example.com'
+        user.first_name = 'System'
+        user.last_name = 'Admin'
+        user.role = UserRole.TEACHER
+        user.bio = 'Администратор платформы с полным доступом к учебному контенту и настройкам безопасности.'
+        user.is_staff = True
+        user.is_superuser = True
+        user.is_active = True
+        user.set_password(ADMIN_PASSWORD)
+        user.save()
+        return user
 
     def _seed_teachers(self):
         result = {}

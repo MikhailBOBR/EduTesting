@@ -1,3 +1,4 @@
+from django.contrib.auth.password_validation import validate_password
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
@@ -40,12 +41,54 @@ class ApiUserSerializer(serializers.Serializer):
 
 class ApiTokenRequestSerializer(serializers.Serializer):
     username = serializers.CharField()
-    password = serializers.CharField()
+    password = serializers.CharField(
+        write_only=True,
+        trim_whitespace=False,
+        style={'input_type': 'password'},
+    )
 
 
 class ApiTokenResponseSerializer(serializers.Serializer):
     token = serializers.CharField()
     user = ApiUserSerializer()
+
+
+class ApiPasswordChangeRequestSerializer(serializers.Serializer):
+    current_password = serializers.CharField(
+        write_only=True,
+        trim_whitespace=False,
+        style={'input_type': 'password'},
+    )
+    new_password = serializers.CharField(
+        write_only=True,
+        trim_whitespace=False,
+        style={'input_type': 'password'},
+    )
+    new_password_confirm = serializers.CharField(
+        write_only=True,
+        trim_whitespace=False,
+        style={'input_type': 'password'},
+    )
+
+    def validate_current_password(self, value):
+        user = self.context['request'].user
+        if not user.check_password(value):
+            raise serializers.ValidationError('Неверный текущий пароль.')
+        return value
+
+    def validate(self, attrs):
+        user = self.context['request'].user
+        if attrs['new_password'] != attrs['new_password_confirm']:
+            raise serializers.ValidationError({'new_password_confirm': 'Новые пароли не совпадают.'})
+        if attrs['current_password'] == attrs['new_password']:
+            raise serializers.ValidationError({'new_password': 'Новый пароль должен отличаться от текущего.'})
+        validate_password(attrs['new_password'], user=user)
+        return attrs
+
+
+class ApiPasswordChangeResponseSerializer(serializers.Serializer):
+    detail = serializers.CharField()
+    token = serializers.CharField()
 
 
 class ApiCourseReferenceSerializer(serializers.ModelSerializer):

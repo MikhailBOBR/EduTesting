@@ -18,9 +18,10 @@
                 <span class="swagger-pill">Swagger UI</span>
                 <h1>{{ title }}</h1>
                 <p>
-                    Полноценный вход в API EduTesting: публичные обзорные методы, токен-авторизация, студенческий
-                    сценарий прохождения теста, достижения, персональные условия, апелляции, аналитика курса
-                    и преподавательский контроль подозрительных попыток.
+                    Полный вход в API EduTesting: публичные обзорные методы, token auth,
+                    смена пароля, защищенный студенческий поток прохождения теста,
+                    достижения, персональные условия, апелляции, аналитика курса и
+                    преподавательский контроль подозрительных попыток.
                 </p>
                 <div class="swagger-actions">
                     <a class="swagger-button" href="{% url 'testing:home' %}">Открыть приложение</a>
@@ -30,24 +31,38 @@
 
             <div class="swagger-hero__aside">
                 <article class="swagger-card swagger-card--accent">
-                    <span class="swagger-card__label">Авторизация</span>
-                    <strong>Token auth</strong>
-                    <p>Получите токен через <code>POST /api/auth/token/</code>, затем вставьте <code>Token ваш_токен</code> в <code>Authorize</code>.</p>
+                    <span class="swagger-card__label">Безопасность</span>
+                    <strong>Token auth и смена пароля</strong>
+                    <p>
+                        Получите токен через <code>POST /api/auth/token/</code>, затем передайте
+                        <code>Token ваш_токен</code> в <code>Authorize</code>. Для защищенной смены
+                        пароля используйте <code>POST /api/auth/password/change/</code>.
+                    </p>
                 </article>
                 <article class="swagger-card">
                     <span class="swagger-card__label">Студент</span>
                     <strong>Тест, черновик и достижения</strong>
-                    <p>Покрыты запись на курс, старт попытки, автосохранение, отправка, просмотр результата и личные достижения.</p>
+                    <p>
+                        Покрыты запись на курс, старт попытки, автосохранение,
+                        отправка, просмотр результата, апелляции и личные достижения.
+                    </p>
                 </article>
                 <article class="swagger-card">
                     <span class="swagger-card__label">Преподаватель</span>
                     <strong>Аналитика и контроль честности</strong>
-                    <p>Доступны аналитика курса, список попыток, индивидуальные условия, апелляции и сводка по подозрительным попыткам.</p>
+                    <p>
+                        Доступны аналитика курса, список попыток, индивидуальные условия,
+                        рассмотрение апелляций и сводка по подозрительным попыткам.
+                    </p>
                 </article>
                 <article class="swagger-card">
-                    <span class="swagger-card__label">Для отчета</span>
-                    <strong>Готовый набор сильных экранов</strong>
-                    <p>Лучше всего показывать токен-авторизацию, старт попытки, автосохранение, результат, достижения, аналитику курса и integrity-контроль.</p>
+                    <span class="swagger-card__label">Администрирование</span>
+                    <strong>Системный контур проекта</strong>
+                    <p>
+                        Для веб-администрирования проекта доступна панель
+                        <code>/admin/</code> с управлением пользователями, курсами,
+                        тестами, попытками, уведомлениями и безопасностью.
+                    </p>
                 </article>
             </div>
         </div>
@@ -57,19 +72,32 @@
         <section class="swagger-summary">
             <article class="swagger-note">
                 <span class="swagger-note__title">Быстрый старт API</span>
-                <p>1. Получите токен. 2. Нажмите <code>Authorize</code>. 3. Проверьте сценарий <code>enroll → start → draft → submit</code>.</p>
+                <p>
+                    1. Получите токен. 2. Нажмите <code>Authorize</code>.
+                    3. Проверьте сценарий <code>enroll → start → draft → submit</code>.
+                </p>
             </article>
             <article class="swagger-note">
                 <span class="swagger-note__title">Что показать</span>
-                <p>Сильнее всего смотрятся <code>POST /api/auth/token/</code>, <code>POST /api/attempts/{id}/submit/</code>, <code>GET /api/my/achievements/</code>, <code>GET /api/courses/{id}/analytics/</code> и <code>GET /api/courses/{id}/integrity/</code>.</p>
+                <p>
+                    Сильнее всего смотрятся <code>POST /api/auth/token/</code>,
+                    <code>POST /api/auth/password/change/</code>,
+                    <code>POST /api/attempts/{id}/submit/</code>,
+                    <code>GET /api/my/achievements/</code>,
+                    <code>GET /api/courses/{id}/analytics/</code> и
+                    <code>GET /api/courses/{id}/integrity/</code>.
+                </p>
             </article>
             <article class="swagger-note">
                 <span class="swagger-note__title">Рабочий режим</span>
-                <p>Фильтр, время ответа, сохранение авторизации и Try it out уже включены, поэтому Swagger подходит и для демо, и для живой проверки API.</p>
+                <p>
+                    Фильтр, время ответа, сохранение авторизации и Try it out уже включены,
+                    поэтому Swagger подходит и для демонстрации, и для живой проверки API.
+                </p>
             </article>
             <article class="swagger-note">
                 <span class="swagger-note__title">Автор проекта</span>
-                <p>Кашпирев М.Д. Все права на проект и сопровождающие материалы принадлежат автору.</p>
+                <p>Кашпирев М.Д. Все права на проект и сопроводительные материалы принадлежат автору.</p>
             </article>
         </section>
 

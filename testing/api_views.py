@@ -10,6 +10,13 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from accounts.security import (
+    get_client_ip,
+    get_login_lockout_remaining_seconds,
+    register_failed_login,
+    reset_failed_logins,
+)
+
 from .analytics import (
     build_attempt_comparison,
     build_attempt_integrity_flags,
@@ -37,6 +44,8 @@ from .api_serializers import (
     ApiCourseListSerializer,
     ApiEnrollmentResponseSerializer,
     ApiMyCourseSerializer,
+    ApiPasswordChangeRequestSerializer,
+    ApiPasswordChangeResponseSerializer,
     ApiQuizAccessOverrideRequestSerializer,
     ApiQuizAccessOverrideSerializer,
     ApiQuizAttemptsResponseSerializer,
@@ -149,7 +158,11 @@ def build_attempt_payload(attempt, user):
 
 @extend_schema(
     summary='Получение токена авторизации',
-    description='Авторизует пользователя по логину и паролю и возвращает токен для дальнейшей работы в Postman и Swagger.',
+    description=(
+        'Авторизует пользователя по логину и паролю и возвращает токен для дальнейшей '
+        'работы в Postman и Swagger. После серии неудачных попыток вход временно '
+        'блокируется для защиты от перебора паролей.'
+    ),
     request=ApiTokenRequestSerializer,
     responses={200: ApiTokenResponseSerializer},
     examples=[
@@ -166,14 +179,29 @@ class ApiTokenAuthView(APIView):
     def post(self, request, *args, **kwargs):
         serializer = ApiTokenRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        username = serializer.validated_data['username']
+        ip_address = get_client_ip(request)
+        remaining = get_login_lockout_remaining_seconds(username, ip_address)
+        if remaining > 0:
+            raise ValidationError(
+                {'detail': f'Слишком много неудачных попыток входа. Повторите через {remaining} сек.'}
+            )
+
         user = authenticate(
             request=request,
-            username=serializer.validated_data['username'],
+            username=username,
             password=serializer.validated_data['password'],
         )
         if user is None:
+            state = register_failed_login(username, ip_address)
+            if state.get('blocked_until'):
+                remaining = get_login_lockout_remaining_seconds(username, ip_address)
+                raise ValidationError(
+                    {'detail': f'Слишком много неудачных попыток входа. Повторите через {remaining} сек.'}
+                )
             raise ValidationError({'detail': 'Неверный логин или пароль.'})
 
+        reset_failed_logins(username, ip_address)
         token, _ = Token.objects.get_or_create(user=user)
         payload = {
             'token': token.key,
@@ -192,6 +220,59 @@ class ApiMeView(APIView):
 
     def get(self, request, *args, **kwargs):
         return Response(ApiUserSerializer(serialize_user(request.user)).data)
+
+
+@extend_schema(
+    summary='Смена пароля',
+    description=(
+        'Позволяет авторизованному пользователю сменить пароль через API. '
+        'Новый пароль проходит стандартную валидацию Django, а после успешной смены '
+        'выдается новый токен для дальнейшей работы в Postman и Swagger.'
+    ),
+    request=ApiPasswordChangeRequestSerializer,
+    responses={200: ApiPasswordChangeResponseSerializer},
+    examples=[
+        OpenApiExample(
+            'Пример смены пароля',
+            value={
+                'current_password': 'StudentDemo123!',
+                'new_password': 'StudentDemo456!',
+                'new_password_confirm': 'StudentDemo456!',
+            },
+            request_only=True,
+        ),
+        OpenApiExample(
+            'Пример ответа',
+            value={
+                'detail': 'Пароль обновлен. Используйте новый токен для API-запросов.',
+                'token': '0123456789abcdef0123456789abcdef01234567',
+            },
+            response_only=True,
+        ),
+    ],
+)
+class ApiPasswordChangeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        serializer = ApiPasswordChangeRequestSerializer(
+            data=request.data,
+            context={'request': request},
+        )
+        serializer.is_valid(raise_exception=True)
+
+        user = request.user
+        user.set_password(serializer.validated_data['new_password'])
+        user.save(update_fields=('password',))
+
+        reset_failed_logins(user.username, get_client_ip(request))
+        Token.objects.filter(user=user).delete()
+        token = Token.objects.create(user=user)
+        payload = {
+            'detail': 'Пароль обновлен. Используйте новый токен для API-запросов.',
+            'token': token.key,
+        }
+        return Response(ApiPasswordChangeResponseSerializer(payload).data)
 
 
 @extend_schema(

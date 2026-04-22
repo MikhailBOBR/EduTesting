@@ -7,11 +7,14 @@
     <div class="section-heading">
         <span class="eyebrow">Авторизация</span>
         <h1>Вход в систему</h1>
-        <p>Используйте учётную запись преподавателя или студента, чтобы попасть в рабочую панель сервиса.</p>
+        <p>Используйте учетную запись преподавателя, студента или администратора, чтобы попасть в рабочую панель сервиса.</p>
     </div>
 
     <form method="post" class="stacked-form">
         {% csrf_token %}
+        {% if form.non_field_errors %}
+            <div class="form-error">{{ form.non_field_errors|striptags }}</div>
+        {% endif %}
         {% for field in form %}
             <div class="form-field">
                 <label for="{{ field.id_for_label }}">{{ field.label }}</label>

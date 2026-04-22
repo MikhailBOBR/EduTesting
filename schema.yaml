@@ -3,13 +3,13 @@ info:
   title: EduTesting API
   version: 1.0.0
   description: |-
-    Полноценный API платформы онлайн-тестирования студентов с акцентом на практические backend-сценарии: автосохранение черновика, сравнение попыток, достижения, аналитика курса, индивидуальные условия, апелляции и контроль подозрительных попыток.
+    Полноценный API платформы онлайн-тестирования студентов с акцентом на практические backend-сценарии: безопасную авторизацию, автосохранение черновика, сравнение попыток, достижения, аналитику курса, индивидуальные условия, апелляции, контроль подозрительных попыток и административное сопровождение проекта.
 
     Что особенно удобно демонстрировать в Swagger UI:
-    * токен-авторизацию и разделение ролей пользователя;
-    * студенческий поток: запись на курс, старт попытки, автосохранение, отправка, результат и достижения;
-    * преподавательский поток: аналитика курса, integrity-контроль, индивидуальные условия и рассмотрение апелляций;
-    * публичные обзорные методы: статистику сервиса, каталог курсов, описание курса и теста.
+    * токен-авторизацию, смену пароля и защиту от перебора паролей;
+    * студенческий поток: запись на курс, старт попытки, автосохранение, отправку и просмотр результата;
+    * преподавательский поток: аналитику курса, integrity-контроль, индивидуальные условия и рассмотрение апелляций;
+    * обзорные публичные методы: статистику сервиса, каталог курсов и описание тестов.
 
     Для защищенных методов сначала выполните `POST /api/auth/token/`, затем нажмите `Authorize` и передайте токен в формате `Token ваш_токен`.
   contact:
@@ -222,11 +222,56 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiAttemptDetail'
           description: ''
+  /api/auth/password/change/:
+    post:
+      operationId: auth_password_change_create
+      description: Позволяет авторизованному пользователю сменить пароль через API.
+        Новый пароль проходит стандартную валидацию Django, а после успешной смены
+        выдается новый токен для дальнейшей работы в Postman и Swagger.
+      summary: Смена пароля
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApiPasswordChangeRequest'
+            examples:
+              ПримерСменыПароля:
+                value:
+                  current_password: StudentDemo123!
+                  new_password: StudentDemo456!
+                  new_password_confirm: StudentDemo456!
+                summary: Пример смены пароля
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ApiPasswordChangeRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ApiPasswordChangeRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiPasswordChangeResponse'
+              examples:
+                ПримерОтвета:
+                  value:
+                    detail: Пароль обновлен. Используйте новый токен для API-запросов.
+                    token: 0123456789abcdef0123456789abcdef01234567
+                  summary: Пример ответа
+          description: ''
   /api/auth/token/:
     post:
       operationId: auth_token_create
       description: Авторизует пользователя по логину и паролю и возвращает токен для
-        дальнейшей работы в Postman и Swagger.
+        дальнейшей работы в Postman и Swagger. После серии неудачных попыток вход
+        временно блокируется для защиты от перебора паролей.
       summary: Получение токена авторизации
       tags:
       - auth
@@ -1540,6 +1585,32 @@ components:
       - summary
       - title
       - total_students
+    ApiPasswordChangeRequest:
+      type: object
+      properties:
+        current_password:
+          type: string
+          writeOnly: true
+        new_password:
+          type: string
+          writeOnly: true
+        new_password_confirm:
+          type: string
+          writeOnly: true
+      required:
+      - current_password
+      - new_password
+      - new_password_confirm
+    ApiPasswordChangeResponse:
+      type: object
+      properties:
+        detail:
+          type: string
+        token:
+          type: string
+      required:
+      - detail
+      - token
     ApiQuestion:
       type: object
       properties:
@@ -1857,6 +1928,7 @@ components:
           type: string
         password:
           type: string
+          writeOnly: true
       required:
       - password
       - username
@@ -1958,7 +2030,8 @@ servers:
   description: Локальный сервер разработки
 tags:
 - name: auth
-  description: Получение токена для работы в Swagger UI и Postman.
+  description: Получение токена, защищенная смена пароля и контроль неудачных попыток
+    входа.
 - name: me
   description: Информация о текущем авторизованном пользователе.
 - name: my
@@ -1968,8 +2041,9 @@ tags:
 - name: courses
   description: Каталог курсов, запись студента, аналитика и контроль попыток по курсу.
 - name: quizzes
-  description: Тесты курса, старт попытки, индивидуальные условия и журнал попыток.
+  description: Тесты курса, старт попытки, индивидуальные условия и журнал завершенных
+    работ.
 - name: attempts
-  description: Черновики, итог попытки, сравнение с прошлой попыткой и апелляции.
+  description: Черновики, результат попытки, сравнение с прошлой попыткой и апелляции.
 - name: appeals
   description: Рассмотрение апелляций преподавателем.
