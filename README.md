@@ -252,6 +252,7 @@ python manage.py test testing
 
 Для проекта подготовлена wiki-навигация:
 
+- [docs/user_guide.md](docs/user_guide.md) — пользовательское описание: роли, основные сценарии, навигация, тесты, апелляции и аналитика.
 - [docs/wiki/index.md](docs/wiki/index.md)
 - [docs/wiki/domain.md](docs/wiki/domain.md)
 - [docs/wiki/architecture.md](docs/wiki/architecture.md)
