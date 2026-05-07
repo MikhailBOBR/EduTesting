@@ -579,7 +579,7 @@ class Command(BaseCommand):
                 Attempt.objects.filter(pk=attempt.pk).update(started_at=now - timedelta(minutes=min(12, quiz.time_limit_minutes - 1)))
 
     def _seed_overrides(self, courses, students):
-        demo_course = courses.get('РћСЃРЅРѕРІС‹ РІРµР±-СЂР°Р·СЂР°Р±РѕС‚РєРё')
+        demo_course = courses.get('Основы веб-разработки')
         if demo_course is None:
             return
 
@@ -593,7 +593,7 @@ class Command(BaseCommand):
             defaults={
                 'extra_time_minutes': 15,
                 'extra_attempts': 1,
-                'notes': 'Р”РµРјРѕРЅСЃС‚СЂР°С†РёРѕРЅРЅРѕРµ РёРЅРґРёРІРёРґСѓР°Р»СЊРЅРѕРµ СѓСЃР»РѕРІРёРµ РґР»СЏ РїРѕРєР°Р·Р° РЅР° Р·Р°С‰РёС‚Рµ.',
+                'notes': 'Демонстрационное индивидуальное условие для показа на защите.',
                 'is_active': True,
             },
         )
@@ -603,7 +603,7 @@ class Command(BaseCommand):
             defaults={
                 'extra_time_minutes': 10,
                 'extra_attempts': 0,
-                'notes': 'Р”РѕРїРѕР»РЅРёС‚РµР»СЊРЅРѕРµ РІСЂРµРјСЏ РґР»СЏ РїРѕРєР°Р·Р° РёРЅРґРёРІРёРґСѓР°Р»СЊРЅРѕР№ РЅР°СЃС‚СЂРѕР№РєРё.',
+                'notes': 'Дополнительное время для показа индивидуальной настройки.',
                 'is_active': True,
             },
         )
@@ -625,7 +625,7 @@ class Command(BaseCommand):
                 defaults={
                     'student': pending_attempt.student,
                     'status': AppealStatus.PENDING,
-                    'message': 'РџСЂРѕС€Сѓ РїРµСЂРµСЃРјРѕС‚СЂРµС‚СЊ РѕС†РµРЅРєСѓ РїРѕ РІРѕРїСЂРѕСЃСѓ, РіРґРµ РѕС‚РІРµС‚ С‡Р°СЃС‚РёС‡РЅРѕ СЃРѕРІРїР°РґР°РµС‚ СЃ СЌС‚Р°Р»РѕРЅРѕРј.',
+                    'message': 'Прошу пересмотреть оценку по вопросу, где ответ частично совпадает с эталоном.',
                     'teacher_response': '',
                     'resolved_by': None,
                     'resolved_at': None,
@@ -645,8 +645,8 @@ class Command(BaseCommand):
                 defaults={
                     'student': resolved_attempt.student,
                     'status': AppealStatus.REJECTED,
-                    'message': 'РџСЂРѕС€Сѓ РїРµСЂРµСЃРјРѕС‚СЂРµС‚СЊ РѕРґРёРЅ РёР· РІРѕРїСЂРѕСЃРѕРІ РїРѕ С‚РµРјРµ С‚РµСЃС‚Р°.',
-                    'teacher_response': 'Р РµР·СѓР»СЊС‚Р°С‚ РѕСЃС‚Р°РІР»РµРЅ Р±РµР· РёР·РјРµРЅРµРЅРёР№: РІ РєР»СЋС‡Рµ СѓС‡РёС‚С‹РІР°РµС‚СЃСЏ РїРѕР»РЅРѕРµ СЃРѕРІРїР°РґРµРЅРёРµ РѕС‚РІРµС‚Р°.',
+                    'message': 'Прошу пересмотреть один из вопросов по теме теста.',
+                    'teacher_response': 'Результат оставлен без изменений: в ключе учитывается полное совпадение ответа.',
                     'resolved_by': resolved_attempt.quiz.course.owner,
                     'resolved_at': (resolved_attempt.submitted_at or now) + timedelta(hours=8),
                 },
