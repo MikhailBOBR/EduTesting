@@ -38,6 +38,23 @@ python manage.py test
 python manage.py spectacular --file schema.yaml
 ```
 
+## GitHub Release и Packages
+
+После мерджа в `main` workflow `Docker Package` собирает и публикует образ в GitHub Container Registry:
+
+```bash
+ghcr.io/mikhailbobr/kyrsback:latest
+```
+
+Для публикации релиза нужно создать и отправить тег:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+Workflow `Release` прогонит проверки, соберет архив проекта и добавит к релизу OpenAPI schema, Postman-коллекцию и этот чеклист.
+
 ## Проверка кодировки
 
 Для защиты от проблем с русским текстом в репозиторий добавлены:
